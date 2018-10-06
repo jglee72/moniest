@@ -24,10 +24,10 @@ These are the three balances
 
 **Sliding**
 >Bank Balance minus bills (Paid or Due) prior to sliding date
-> - Theoretical net value on slider date 
-> - Slider will show date
+> - Theoretical net value up to slider date 
+> - Slider will show set date
 > -  All balances shown if possible 
-> - Income added to bank balance prior to slide date
+> - Income included in slide balance prior to slide set date
 
 
 # **REMINDERS**
@@ -50,19 +50,21 @@ Bills
 
 ### One Time
 - A Bill for a service rendered
+- A zero balance on a creit card
 
 ### Recurring
 - Most Bills will be of this type by default 
-- Including credit cards with zero balance 
+- Not Including credit cards with zero balance 
 
 ## *Bill Status*
 
 ### *Paid*
    - Actual transfer of funds from bank (or any other financial account)
+   - todo: should past due bills be auomatically deducted from bank balance. 
 
 ### *Due*
    - Bill has been issued from organization
-   - Bill due date (for running/instant total)
+   - Bill due date (for running/instant total) is greater than today
 
 # Account Class
 

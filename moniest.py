@@ -5,102 +5,22 @@
 #todo: accounts that won't be paid off;
 # how to indicate paymet plan within balance
 
-# Working Copy test version. edit in pythonista from external files-->open, choose from working copy. pay big bucks to push to github
-
-'''
-# **WHAT THE F$!?&@**
-Quite simply it’s a running total of how much cash you have in the bank now, upcoming, and any point in time in the future.
-
-# **ASSUMPTIONS **
-   - All bills are paid on time (due date)
-   - All bills will be paid in full 
-   - Even bills with zero balance to be included in various reports 
-   - Diligent spending entry is not expected, casual updates to balances only needed
-
-# **BALANCES**
-These are the three balances 
-
-**Real**
->Actual Bank balance 
-> - Can be a rough estimation 
-> - Updateable whenever to match online balance 
-
-**Theoretical Extended**
->Bank Balance minus all bills 
-> - Variable 1-3 months advance bills 
-> - Good for quick glance of upcoming bills
-
-**Sliding**
->Bank Balance minus bills (Paid or Due) prior to sliding date
-> - Theoretical net value on slider date 
-> - Slider will show date
-> -  All balances shown if possible 
-> - Income added to bank balance prior to slide date
-
-
-# **REMINDERS**
-- All bills alert at bill issuing date 
-- All bills alert 7 business days prior to Due Date
-- Reminders have no effect on balace, just that the bill is due
-- Reminder can be anything from the category 
-Bills
-
-# **BILLS**
-## *Bills Categories:*
-   - Government medical or tax payment
-   - Car/Life/Medical/House/etc Insurance
-   - Mortgae/Loan/Tax/etc payment 
-   - Credit Cards
-   - Gas/Electric/Phone/Water/cable/Internet/etc
-   - Editable/Create/destroy
-
-## *Bills Types*
-
-### One Time
-- A Bill for a service rendered
-
-### Recurring
-- Most Bills will be of this type by default 
-- Including credit cards with zero balance 
-
-## *Bill Status*
-
-### *Paid*
-   - Actual transfer of funds from bank (or any other financial account)
-
-### *Due*
-   - Bill has been issued from organization
-   - Bill due date (for running/instant total)
-
-# Account Class
-
-**Title**        | **Description**
------------- | -------------
-Name            |  String
-Balance        |  float
-Ext Bal 1.       |  float 
-Ext Bal 2.      |  float
-Due date.     |  datetime.date
-Save data     |  class method (create/edit csv)
-Retrv data    |  class method (read csv)
-Retrv bal      |  class method
-Retrv ext bal      |  class method
-Retrv sld bal      |  class method
-'''
+# TIG version. Edit in pythonista from external files-->open, choose from TIG. Use apple 'file' to enable/see TIG files first. 
 
 import ui
 from time import sleep
 from datetime import *
 import console
-#from calView3 import *
 import csv
 import dialogs
 
+# Globals:
+#__________#
 done_pushed=False
 cancel_pushed=False
-	
-########### Class Definitions ##############
-############################################
+
+########### Class Definitions ############
+##########################################
 class account (object):
 	'''Class for handling data for each account
 	Currently all data is handled directly -i.e. there is no class modules to handle data security at the moment. 
@@ -114,13 +34,13 @@ class account (object):
 		self.bank_balance=dep_val
 		self.bank_date = dep_date_val
 
-#############===============###############
+#############===============#############
 class accountField (ui.View):
 	'''Each account's display of current balance,name,due date, and recurrence setting.  Editable fields for balance and name update. Datepicker for Due Day update, toggle for recurring. 
 	todo: dialog for recurring weekly,bi-monthly, etc
 	'''	
 	# datepicker needs background running or 
-	# did't return or ?	- can't remember
+	# didn't return or wouldn't go away?	- can't remember
 	@ui.in_background
 	def due_button_tapped(self,sender):
 		global done_pushed
@@ -129,7 +49,6 @@ class accountField (ui.View):
 		s_y_pos=v.frame[1]+50
 		w=sender.superview
 		v.due_button_pressed=True
-#		temp=v.superview
 
 		#get due day in datetime format to pre-fill datepicker with current due date
 		due_day_picker = datetime.strptime(sender.superview.superview.acc_list[self.idx].due_day,'%Y,%m,%d')
@@ -146,12 +65,13 @@ class accountField (ui.View):
 		if cancel_pushed==True:
 			cancel_pushed=False
 			return 
-		
+		#'Done' was pushed
 		v.title=(str(ext_date.date))[:10]
 		#save to acc_list
 		acc_list= sender.superview.superview.acc_list
 		acc_list[self.idx].due_day= datetime.strftime(ext_date.date,'%Y,%m,%d')
-		
+	
+	# Delegate functions within class definition.  Generic names need checks as they are called by any associate (i.e. textfield) ui object	
 	def repeat_changed(self,sender):
 		acc_list= sender.superview.superview.acc_list
 		acc_list[self.idx].repeat=sender.value
@@ -247,7 +167,10 @@ class moniest (ui.View):
 			self.sv.add_subview (self.acc_fld.bal_field)
 			self.sv.add_subview (self.acc_fld.due_button)
 			self.sv.add_subview (self.acc_fld.switch)
-		
+	def save_button_(self,sender):
+		print('writing')
+		write_acc_list(self.acc_list)
+		console.hud_alert('Saved')
 	def __init__(self):
 		w,h = ui.get_screen_size()
 		# main View frame	attributes
@@ -258,18 +181,19 @@ class moniest (ui.View):
 		self.flex=''
 		
 		# application buttons
-		self.right_button_items = (ui.ButtonItem(title='Done',action=done_button),ui.ButtonItem(title='Cancel',action=cancel_button))		
+		self.right_button_items = (ui.ButtonItem(title='Done',action=done_button),ui.ButtonItem(title='Cancel',action=cancel_button))
+		
+		self.left_button_items = (ui.ButtonItem(title='Save',action=self.save_button_),)		
+				
 		
 		# retreive the database: f() returns a  list of accounts incl bank balance
 		self.acc_list=read_acc_list()
-#		print(self.acc_list)
 		
 		#Scrollview for all accounts: increases
 		#total on iphone; keyboard non-blocking
 		self.sv = ui.ScrollView(frame = (0,0,w,h-245),bg_color='#e2e2e2',shows_vertical_scroll_indicator=False,scroll_enabled=True,indicator_style='#ade4ed',flex='')
 	
-		#important content size must be bigger
-		#than scrollview to allow for scrolling
+		#important content size must be bigger than scrollview to allow for scrolling
 		self.sv.content_size = (w, h*2) 
 		self.add_subview(self.sv)
 
@@ -280,8 +204,8 @@ class moniest (ui.View):
 		self.next_y_pos= (len(self.acc_list)*50+10)
 		
 		# button to add new account
-		self.add_account=ui.Button(title='Add Account',font=('Copperplate',17),frame=(10,440,0,0),action=add_account_tapped,border_width=0,border_color='#676767')
-		self.add_account.frame=(10,440,110,40)
+		self.add_account = ui.Button(title='Add Account',font=('Copperplate',17),frame=(10,440,0,0),action=add_account_tapped,border_width=0,border_color='#676767')
+
 		self.add_subview(self.add_account)
 		
 		#Extended date picker
@@ -316,6 +240,7 @@ class moniest (ui.View):
 		self.add_subview(self.slide_label)
 					
 	def draw(self): 
+		print('+++++++++++++++++++++++++++++++')
 		self.b_real_balance.text= self.acc_list[0].bank_balance
 		
 		sum=sum_slide=0.0	
@@ -323,10 +248,42 @@ class moniest (ui.View):
 		dep1_date = datetime.strptime(self.acc_list[1].bank_date,'%Y,%m,%d')
 		dep2_date = datetime.strptime(self.acc_list[2].bank_date,'%Y,%m,%d')
 		
-		for i in self.acc_list:
+		for i in (self.acc_list):
 			#string conversion to datetime.datetime
 			due_day_= datetime.strptime(i.due_day,'%Y,%m,%d')
 			
+			# Need 1,2,3 month advance due day for recurring accounts
+			#todo: can this be passed as reference on a per button active
+			# only do if repeat is True
+			due_day_next=due_day_ + timedelta(days=30)
+			due_day_next_next= due_day_ + timedelta(days=60)
+			due_day_next_next_next= due_day_ + timedelta(days=90)
+#			print(due_day_,due_day_next,due_day_next_next,due_day_next_next_next)
+			#todo: only process if ext_date changes
+			if (due_day_next > self.ext_date > due_day_):
+				print('orig', i.name, self.ext_date)
+			# sum += 1x recurring balance
+			elif (due_day_next_next > self.ext_date > due_day_next):
+				print('30 day',i.name)
+			# sum += 2x recurring balance
+			elif (due_day_next_next_next > self.ext_date > due_day_next_next):
+				print('60 day',i.name)
+			elif (self.ext_date > due_day_next_next_next):
+				print('90 day',i.name)
+				
+			#todo: only process on slide_date change
+			if (due_day_next > self.slide_date > due_day_):
+				print('s_orig', i.name)
+			# sum += 1x recurring balance
+			elif (due_day_next_next > self.slide_date > due_day_next):
+				print('s_30 day',i.name)
+			# sum += 2x recurring balance
+			elif (due_day_next_next_next > self.slide_date > due_day_next_next):
+				print('s_60 day',i.name)
+			elif (self.slide_date > due_day_next_next_next):
+				print('s_90 day',i.name)
+			
+			#todo need to use recurring above
 			#calculations for General extend date	
 			if due_day_ < self.ext_date:
 				sum+=float(i.balance)
@@ -336,24 +293,35 @@ class moniest (ui.View):
 				sum_slide+=float(i.balance)
 				
 		#now add deposits
-#		print(self.ext_date.day)
+		#todo: need to calculate and check against recurring bank deposits beyond their init deposit date
+		# Extend update
 		if self.ext_date > dep1_date:
 			sum-= float(self.acc_list[1].bank_balance)
 		if self.ext_date > dep2_date:
 			sum-=			float(self.acc_list[2].bank_balance)
-		
-			
+		# Slider update	
 		if self.slide_date > dep1_date:
 			sum_slide-= float(self.acc_list[1].bank_balance)
 		if self.slide_date > dep2_date:
 			sum_slide-= float(self.acc_list[2].bank_balance)
 			
+			# example of how to store mulitple data in a single csv cell and then extract it (painstakenly); date somehow has extra quotes so ([][2:-2]) needed
+			
+#			l=(2450.00,'2018,6,7') # dep,date tuple
+#			s=str(l)					# csv turns to str()
+#			t=s.split(",",1)	#aftr read turn back to tuple, stop after 1 x ','
+#			float(t[0][1:])			#dep back to float
+#			time=datetime.strptime(t[1][2:-2],'%Y,%m,%d') #date tuple back to datetime
+		
+		# update balance GUIs
 		self.b_ext_balance.text= str(round((float(self.b_real_balance.text)-sum),2))
 		
 		self.b_slide_balance.text= str(round((float(self.b_real_balance.text)-sum_slide),2))
 		self.slide_label.text=str(self.slide_date)[:10]
 		
 	def will_close(self):
+		''' Called when app is closed via the 'X' left-button only. 
+		'''
 		write_acc_list(self.acc_list)
 		
 ########### CSV DB Functions ##############
@@ -404,6 +372,7 @@ def write_acc_list(acc_list):
 ########### Button Actions ##################
 #############################################
 
+# Application buttons {Done,Cancel,Save} have a quirk (bug): they do not have a superview. therefore a global trigger is polled elsewhere. 'Save' required access to account list acc_list so a 'self' method was used
 def done_button(sender):
 	global done_pushed
 	done_pushed=True
