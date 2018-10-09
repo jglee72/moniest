@@ -10,7 +10,13 @@
 # 2018-10-05 
 # Paid button: when a bill is known to be paid: automatically txfr money out of bank balance, change due date to next interval (if a recurring bill)?  Does this effect slide ext balances with regards to todays date?
 # Added cancel and done logic to bill balance and bill name
-
+#
+# 2018-10-07
+# Implement recurring deposits
+#  	option a) increase bank balace menu to 
+#							include future deposits
+#		option b)	extrapolate deposits out 3 mo
+#
 import ui
 from time import sleep
 from datetime import *
@@ -257,7 +263,7 @@ class moniest (ui.View):
 		self.add_subview(self.ext_date_seg)
 		
 		# slider to calculate slide date balance
-		self.date_slider= ui.Slider(frame=(10,500,350,10),action=slider_changed)
+		self.date_slider= ui.Slider(frame=(10,500,350,10),action=slider_changed, continuous=False)
 		self.add_subview(self.date_slider)
 		
 		# Bank balances
@@ -298,32 +304,32 @@ class moniest (ui.View):
 			# Need 1,2,3 month advance due day for recurring accounts
 			#todo: can this be passed as reference on a per button active
 			# only do if repeat is True
-			due_day_next=due_day_ + timedelta(days=30)
-			due_day_next_next= due_day_ + timedelta(days=60)
-			due_day_next_next_next= due_day_ + timedelta(days=90)
-#			print(due_day_,due_day_next,due_day_next_next,due_day_next_next_next)
+			due_day_30=due_day_ + timedelta(days=30)
+			due_day_60= due_day_ + timedelta(days=60)
+			due_day_90= due_day_ + timedelta(days=90)
+#			print(due_day_,due_day_30,due_day_60,due_day_90)
 			#todo: only process if ext_date changes
-			if (due_day_next > self.ext_date > due_day_):
+			if (due_day_30 > self.ext_date > due_day_):
 				print('orig', i.name, self.ext_date)
 			# sum += 1x recurring balance
-			elif (due_day_next_next > self.ext_date > due_day_next):
+			elif (due_day_60 > self.ext_date > due_day_30):
 				print('30 day',i.name)
 			# sum += 2x recurring balance
-			elif (due_day_next_next_next > self.ext_date > due_day_next_next):
+			elif (due_day_90 > self.ext_date > due_day_60):
 				print('60 day',i.name)
-			elif (self.ext_date > due_day_next_next_next):
+			elif (self.ext_date > due_day_90):
 				print('90 day',i.name)
 				
 			#todo: only process on slide_date change
-			if (due_day_next > self.slide_date > due_day_):
+			if (due_day_30 > self.slide_date > due_day_):
 				print('s_orig', i.name)
 			# sum += 1x recurring balance
-			elif (due_day_next_next > self.slide_date > due_day_next):
+			elif (due_day_60 > self.slide_date > due_day_30):
 				print('s_30 day',i.name)
 			# sum += 2x recurring balance
-			elif (due_day_next_next_next > self.slide_date > due_day_next_next):
+			elif (due_day_90 > self.slide_date > due_day_60):
 				print('s_60 day',i.name)
-			elif (self.slide_date > due_day_next_next_next):
+			elif (self.slide_date > due_day_90):
 				print('s_90 day',i.name)
 			
 			#todo need to use recurring above
@@ -336,17 +342,71 @@ class moniest (ui.View):
 				sum_slide+=float(i.balance)
 				
 		#now add deposits
-		#todo: need to calculate and check against recurring bank deposits beyond their init deposit date
+		# 
+		delta = dep1_date.day-datetime.today().day
+		
+		if delta > 0:
+			dep1_date = datetime.today() + timedelta(days=abs(delta))
+			dep2_date = dep1_date + timedelta(days=15)
+		else:
+			dep1_date = datetime.today() - timedelta(days=abs(delta)) + timedelta(days=30) 
+			dep2_date = dep1_date - timedelta(days=15)
+		
+		#future date calculations:
+		dep1_30= dep1_date + timedelta(days=30)
+		dep1_60= dep1_date + timedelta(days=60)
+		dep1_90= dep1_date + timedelta(days=90)
+		dep2_30= dep2_date + timedelta(days=30)
+		dep2_60= dep2_date + timedelta(days=60)
+		dep2_90= dep2_date + timedelta(days=90)
+		print('1:  ' ,dep1_date,dep1_30)
+		print('2:  ' ,dep2_date,dep2_30)
+		
 		# Extend update
+		i=0
 		if self.ext_date > dep1_date:
-			sum-= float(self.acc_list[1].bank_balance)
+			i+=1
+			if self.ext_date > dep1_30:
+				i+=1
+				if self.ext_date > dep1_60:
+					i+=1
+					if self.ext_date > dep1_90:
+						i+=1
+			sum-= i * (float(self.acc_list[1].bank_balance))
+			
+		i=0
 		if self.ext_date > dep2_date:
-			sum-=			float(self.acc_list[2].bank_balance)
-		# Slider update	
+			i+=1
+			if self.ext_date > dep2_30:
+				i+=1
+				if self.ext_date > dep2_60:
+					i+=1
+					if self.ext_date > dep2_90:
+						i+=1
+			sum-= i * (float(self.acc_list[2].bank_balance))
+			
+		# slide update
+		i=0
 		if self.slide_date > dep1_date:
-			sum_slide-= float(self.acc_list[1].bank_balance)
+			i+=1
+			if self.slide_date > dep1_30:
+				i+=1
+				if self.slide_date > dep1_60:
+					i+=1
+					if self.slide_date > dep1_90:
+						i+=1
+			sum_slide-= i * (float(self.acc_list[1].bank_balance))
+			
+		i=0
 		if self.slide_date > dep2_date:
-			sum_slide-= float(self.acc_list[2].bank_balance)
+			i+=1
+			if self.slide_date > dep2_30:
+				i+=1
+				if self.slide_date > dep2_60:
+					i+=1
+					if self.slide_date > dep2_90:
+						i+=1
+			sum_slide-= i * (float(self.acc_list[2].bank_balance))
 			
 			# example of how to store mulitple data in a single csv cell and then extract it (painstakenly); date somehow has extra quotes so ([][2:-2]) needed
 			
@@ -443,10 +503,9 @@ def add_account_tapped(sender):
 	
 def ext_date_tapped(sender):
 	s=sender
-	#returns set{0,2}
 	sv=sender.superview
+	ehc#returns set{0,2}
 	idx=s.selected_index
-	sleep(0.5)
 	
 	today_date=datetime.today()
 
@@ -454,13 +513,15 @@ def ext_date_tapped(sender):
 	sv.set_needs_display()
 		
 def slider_changed(sender):
+	''' Continuous mode had to be false to aleviate pythonista dropping out. 
+	'''
 	s=sender
 	sv=sender.superview
 	idx=sender.value
-	
 	today_date=datetime.today()
 	
 	sv.slide_date=today_date + (idx)*timedelta(days=90)
+
 	sv.set_needs_display()
 	
 def main():	
