@@ -10,7 +10,21 @@
 # 2018-10-05 
 # Paid button: when a bill is known to be paid: automatically txfr money out of bank balance, change due date to next interval (if a recurring bill)?  Does this effect slide ext balances with regards to todays date?
 # Added cancel and done logic to bill balance and bill name
-
+#
+# 2018-10-07
+# Implement recurring deposits
+#  	option a) increase bank balace menu to 
+#							include future deposits
+#		option b)	extrapolate deposits out 3 mo
+# 2018-10-09
+# Further implement recurring bills; 
+# 	option a) extended bal menu. needs new
+#		storage; could implement new tuple csv
+#		method
+# 	option b) extend switch menu to have
+#		bi_monthly, monthly. fine for equal 
+#		payments; new column 
+#
 import ui
 from time import sleep
 from datetime import *
@@ -22,6 +36,10 @@ import dialogs
 #__________#
 done_pushed=False
 cancel_pushed=False
+bi_weekly=15
+bi_monthly=60
+monthly=30
+yearly=365
 
 ########### Class Definitions ############
 ##########################################
@@ -29,7 +47,7 @@ class account (object):
 	'''Class for handling data for each account
 	Currently all data is handled directly -i.e. there is no class modules to handle data security at the moment. 
 	'''
-	def __init__(self,idx_val=None,name_val='',bal_val='',due_day_val='Due Date',repeat_val=True,dep_val=0.0, dep_date_val=datetime.today(),paid_val=False):
+	def __init__(self,idx_val=None,name_val='',bal_val='0.0',due_day_val= datetime.strftime(datetime.today(),'%Y,%m,%d'),repeat_val=True,dep_val=0.0, dep_date_val= datetime.today(), paid_val=False,cycle_val=monthly):
 		self.idx=idx_val
 		self.name=name_val
 		self.balance=bal_val
@@ -38,6 +56,7 @@ class account (object):
 		self.bank_balance=dep_val
 		self.bank_date = dep_date_val
 		self.paid = paid_val
+		self.cycle = cycle_val
 
 #############===============#############
 class accountField (ui.View):
@@ -79,9 +98,49 @@ class accountField (ui.View):
 		acc_list[self.idx].due_day= datetime.strftime(ext_date.date,'%Y,%m,%d')
 	
 	# Delegate functions within class definition.  Generic names need checks as they are called by any associated (i.e. textfield) ui object	
+	@ui.in_background
 	def repeat_changed(self,sender):
 		acc_list= sender.superview.superview.acc_list
+		sv=sender.superview
+		#save recur enable/disable
 		acc_list[self.idx].repeat=sender.value
+		#get cycle value for default
+		cycle = acc_list[self.idx].cycle
+		
+		if (sender.value):
+			field1={'type':'number','key':'balance','title':'Current Bill Amount:  ','value':'{:0.2f}'.format(float(acc_list[self.idx].balance))}
+			field2={'type':'switch','key':'bi_weekly','title':'Bi Weekly','value':True if float(cycle) == bi_weekly else False}
+			
+			field3={'type':'switch','key':'bi_monthly','title':'Bi-Monthly',
+			'value':True if float(cycle) == bi_monthly else False}
+			field4={'type':'switch','key':'monthly','title':'Monthly','value':True if float(cycle) == monthly else False}
+			field5={'type':'switch','key':'yearly','title':'Yearly','value':True if float(cycle) == yearly else False}
+			
+			t1=[field1]
+			t2=[field2,field3,field4,field5]
+			s1='Withdrawl Amount',t1
+			s2='Cycle',t2
+		
+			sect=(s1,s2)
+			answer=dialogs.form_dialog(title='Recurring accounts', sections=sect, done_button_title='Finished')
+			
+			d_balance=answer['balance']
+			d_weekly=answer['bi_weekly']
+			d_bi_monthly=answer['bi_monthly']
+			d_monthly=answer['monthly']
+			d_yearly=answer['yearly']
+			
+			if (d_weekly):
+				acc_list[self.idx].cycle=bi_weekly
+			if  (d_monthly):
+				acc_list[self.idx].cycle=monthly
+			if  (d_bi_monthly):
+				acc_list[self.idx].cycle=bi_monthly
+			if  (d_yearly):
+				acc_list[self.idx].cycle=yearly
+			
+			acc_list[self.idx].balance=d_balance
+			self.bal_field.text=d_balance
 	
 	def textfield_did_end_editing(self, textfield):
 		global done_pushed
@@ -90,6 +149,9 @@ class accountField (ui.View):
 			textfield.text_color='black'
 			textfield.superview.superview.acc_list[self.idx].balance=float(textfield.text)
 			textfield.superview.superview.acc_list[self.idx].paid=False
+			
+			# limit to, or add, 2 decimal places as needed
+			textfield.text='{:.2f}'.format(float(textfield.text))
 		
 		elif(textfield.placeholder=='Account'):
 			textfield.superview.superview.acc_list[self.idx].name=textfield.text
@@ -141,7 +203,7 @@ class accountField (ui.View):
 		
 		self.frame_location = (frame_loc[0]+self.frame_gw_,frame_loc[1])
 		
-		self.bal_field= ui.TextField(frame=self.frame_location+(self.frame_wh),bg_color=(.36, .54, .67), font=('Rockwell',17), text_color= 'grey' if acc.paid == 'True' else 'black', border_color='black', placeholder='Balance',text=str(acc.balance),border_width=2, border_radius=20,alignment=ui.ALIGN_LEFT,alpha=0.5,selected=(True),editable=True,keyboard_type=ui.KEYBOARD_NUMBERS,delegate=self)
+		self.bal_field= ui.TextField(frame=self.frame_location+(self.frame_wh),bg_color=(.36, .54, .67), font=('Rockwell',17), text_color= 'grey' if acc.paid == 'True' else 'black', border_color='black', placeholder='Balance',text='{:.2f}'.format(float(acc.balance)),border_width=2, border_radius=20,alignment=ui.ALIGN_LEFT,alpha=0.5,selected=(True),editable=True,keyboard_type=ui.KEYBOARD_NUMBERS,delegate=self)
 
 		self.frame_location = (self.frame_location[0]+self.frame_gw-5,frame_loc[1]-15)
 		
@@ -164,11 +226,11 @@ class moniest (ui.View):
 	@ui.in_background
 	def textfield_did_begin_editing(self,textfield):
 		if(textfield.placeholder=='Bank Bal'):
-			field1={'type':'number','key':'balance','title':'Current Balance:  ','tint_color':'#346511','value':textfield.text}
-			field2={'type':'number','key':'deposit1','title':'Deposit Amount:  ','value':self.acc_list[1].bank_balance}
+			field1={'type':'number','key':'balance','title':'Current Balance:  ','tint_color':'#346511','value':'{:.2f}'.format(float(textfield.text))}
+			field2={'type':'number','key':'deposit1','title':'Deposit Amount:  ','value':'{:.2f}'.format( float(self.acc_list[1].bank_balance))}
 			field3={'type':'date','key':'dep1_date','title':'Deposit Date:  ','tint_color':'#000000',
 			'value':(datetime.strptime(self.acc_list[1].bank_date,'%Y,%m,%d'))}
-			field4={'type':'number','key':'deposit2','title':'Deposit Amount:  ','value':self.acc_list[2].bank_balance}
+			field4={'type':'number','key':'deposit2','title':'Deposit Amount:  ','value':'{:.2f}'.format(float(self.acc_list[2].bank_balance))}
 			field5={'type':'date','key':'dep2_date','title':'Deposit Date:  ' ,'tint_color':'#000000',
 			'value':(datetime.strptime(self.acc_list[2].bank_date,'%Y,%m,%d'))}
 			
@@ -257,12 +319,12 @@ class moniest (ui.View):
 		self.add_subview(self.ext_date_seg)
 		
 		# slider to calculate slide date balance
-		self.date_slider= ui.Slider(frame=(10,500,350,10),action=slider_changed)
+		self.date_slider= ui.Slider(frame=(10,500,350,10),action=slider_changed, continuous=False)
 		self.add_subview(self.date_slider)
 		
 		# Bank balances
 		# todo: should this be a class of 'accounts'
-		self.b_real_balance = ui.TextField(frame=(10,530,110,45), placeholder = 'Bank Bal' , text=str(self.acc_list[0].bank_balance) , keyboard_type=ui.KEYBOARD_NUMBERS , border_width=0,border_radius=5 , bordered=True, delegate=self)
+		self.b_real_balance = ui.TextField(frame=(10,530,110,45), placeholder = 'Bank Bal' , text='{:.2f}'.format(float(self.acc_list[0].bank_balance)) , keyboard_type=ui.KEYBOARD_NUMBERS , border_width=0,border_radius=5 , bordered=True, delegate=self)
 
 		self.add_subview(self.b_real_balance)
 		
@@ -283,71 +345,154 @@ class moniest (ui.View):
 		self.add_subview(self.slide_label)
 					
 	def draw(self): 
-		print('+++++++++++++++++++++++++++++++')
-		self.b_real_balance.text= self.acc_list[0].bank_balance
-		
+#		print('+++++++++++++++++++++++++++++++')
+		self.b_real_balance.text= '{:.2f}'.format(float(self.acc_list[0].bank_balance))
+		#reset summations for date calcs
 		sum=sum_slide=0.0	
-		# date conversions for date math
+		
+		t_day= datetime.today().day
+		t_mo= datetime.today().month
+		t_yr= datetime.today().year
+		# date conversions for deposit date math
 		dep1_date = datetime.strptime(self.acc_list[1].bank_date,'%Y,%m,%d')
 		dep2_date = datetime.strptime(self.acc_list[2].bank_date,'%Y,%m,%d')
 		
+		today = datetime.today()
+		
 		for i in (self.acc_list):
-			#string conversion to datetime.datetime
-			due_day_= datetime.strptime(i.due_day,'%Y,%m,%d')
+			#string conversion to datetime.datetime 
+			# Inial due day for future due dates 
+			due_day_0= datetime.strptime(i.due_day,'%Y,%m,%d')
+
+			due_day_1 = due_day_0
 			
-			# Need 1,2,3 month advance due day for recurring accounts
-			#todo: can this be passed as reference on a per button active
-			# only do if repeat is True
-			due_day_next=due_day_ + timedelta(days=30)
-			due_day_next_next= due_day_ + timedelta(days=60)
-			due_day_next_next_next= due_day_ + timedelta(days=90)
-#			print(due_day_,due_day_next,due_day_next_next,due_day_next_next_next)
+			# test for recurring bill enabled
+			recur = i.repeat
+			# get cycle info from account
+			cycle = int(i.cycle)
+
+			if (recur=='True'):
+				# first case: today is less than bill 
+				# due day - ie normal
+				if (today < due_day_0):
+					due_day_1 = due_day_0
+
+				#today is greater; how much
+				else:
+					days_delta = (today-due_day_0)
+
+					# Every 30 days is beyond next cycle
+					cycle_cnt = (days_delta.days //cycle) + 1
+					due_day_1 = due_day_0 + timedelta(days= cycle_cnt * cycle)
+			
+				# Need advance dates for accounts based on cycle settings
+				#todo: can this be a method
+				due_day_2= due_day_1 + timedelta(days=cycle)
+				due_day_3= due_day_2 + timedelta(days=cycle)
+				due_day_4= due_day_3 + timedelta(days=cycle)
+				if (cycle == bi_weekly):
+					due_day_5 = due_day_4 + timedelta(days=cycle)
+					due_day_6 = due_day_5 + timedelta(days=cycle)
 			#todo: only process if ext_date changes
-			if (due_day_next > self.ext_date > due_day_):
-				print('orig', i.name, self.ext_date)
-			# sum += 1x recurring balance
-			elif (due_day_next_next > self.ext_date > due_day_next):
-				print('30 day',i.name)
-			# sum += 2x recurring balance
-			elif (due_day_next_next_next > self.ext_date > due_day_next_next):
-				print('60 day',i.name)
-			elif (self.ext_date > due_day_next_next_next):
-				print('90 day',i.name)
-				
-			#todo: only process on slide_date change
-			if (due_day_next > self.slide_date > due_day_):
-				print('s_orig', i.name)
-			# sum += 1x recurring balance
-			elif (due_day_next_next > self.slide_date > due_day_next):
-				print('s_30 day',i.name)
-			# sum += 2x recurring balance
-			elif (due_day_next_next_next > self.slide_date > due_day_next_next):
-				print('s_60 day',i.name)
-			elif (self.slide_date > due_day_next_next_next):
-				print('s_90 day',i.name)
+			# Extend update
+			ii=0
+			if self.ext_date > due_day_1:
+				ii+=1
+				if self.ext_date > due_day_2:
+					ii+=1
+					if self.ext_date > due_day_3:
+						ii+=1
+						if self.ext_date > due_day_4:
+							ii+=1
+			sum+= ii * (float(i.balance))
+#			if ii: print('ext',i.name,ii)
 			
-			#todo need to use recurring above
-			#calculations for General extend date	
-			if due_day_ < self.ext_date:
-				sum+=float(i.balance)
+			ii=0
+			if self.slide_date > due_day_1:
+				ii+=1
+				if self.slide_date > due_day_2:
+					ii+=1
+					if self.slide_date > due_day_3:
+						ii+=1
+						if self.slide_date > due_day_4:
+							ii+=1
+							if (cycle == bi_weekly):
+								if self.slide_date > due_day_5:
+									ii+=1
+									if self.slide_date > due_day_6:
+										ii+=1
+			sum_slide+= ii * (float(i.balance))
+#			if ii: print('slide',i.name,ii)
 				
-			#calculations for slider extend date
-			if due_day_ < self.slide_date:
-				sum_slide+=float(i.balance)
-				
-		#now add deposits
-		#todo: need to calculate and check against recurring bank deposits beyond their init deposit date
+		###########now add deposits##############
+		# deduce first valid deposit day using datetime.day math and extrapolation
+		delta = dep1_date.day-datetime.today().day
+		
+		if delta > 0:
+			dep1_date = datetime.today() + timedelta(days=abs(delta))
+			dep2_date = dep1_date + timedelta(days=15)
+		else:
+			dep1_date = datetime.today() - timedelta(days=abs(delta)) + timedelta(days=30) 
+			dep2_date = dep1_date - timedelta(days=15)
+		
+		#future date calculations:
+		dep1_30= dep1_date + timedelta(days=30)
+		dep1_60= dep1_date + timedelta(days=60)
+		dep1_90= dep1_date + timedelta(days=90)
+		dep2_30= dep2_date + timedelta(days=30)
+		dep2_60= dep2_date + timedelta(days=60)
+		dep2_90= dep2_date + timedelta(days=90)
+		
 		# Extend update
+		ii=0
 		if self.ext_date > dep1_date:
-			sum-= float(self.acc_list[1].bank_balance)
-		if self.ext_date > dep2_date:
-			sum-=			float(self.acc_list[2].bank_balance)
-		# Slider update	
-		if self.slide_date > dep1_date:
-			sum_slide-= float(self.acc_list[1].bank_balance)
-		if self.slide_date > dep2_date:
-			sum_slide-= float(self.acc_list[2].bank_balance)
+			ii+=1
+			if self.ext_date > dep1_30:
+				ii+=1
+				if self.ext_date > dep1_60:
+					ii+=1
+					if self.ext_date > dep1_90:
+						ii+=1
+		sum-= ii * (float(self.acc_list[1].bank_balance))
+#		if ii: print('ext_dep1',ii)
 			
+		ii=0
+		if self.ext_date > dep2_date:
+			ii+=1
+			if self.ext_date > dep2_30:
+				ii+=1
+				if self.ext_date > dep2_60:
+					ii+=1
+					if self.ext_date > dep2_90:
+						ii+=1
+		sum-= ii * (float(self.acc_list[2].bank_balance))
+#		if ii: print('ext_dep2',ii)
+			
+		# slide update
+		ii=0
+		if self.slide_date > dep1_date:
+			ii+=1
+			if self.slide_date > dep1_30:
+				ii+=1
+				if self.slide_date > dep1_60:
+					ii+=1
+					if self.slide_date > dep1_90:
+						ii+=1
+		sum_slide-= ii * (float(self.acc_list[1].bank_balance))
+#		if ii: print('slide_dep1',ii)			
+		
+		ii=0
+		if self.slide_date > dep2_date:
+			ii+=1
+			if self.slide_date > dep2_30:
+				ii+=1
+				if self.slide_date > dep2_60:
+					ii+=1
+					if self.slide_date > dep2_90:
+						ii+=1
+		sum_slide-= ii * (float(self.acc_list[2].bank_balance))
+#		if ii: print('slide_dep2',ii)			
+		
 			# example of how to store mulitple data in a single csv cell and then extract it (painstakenly); date somehow has extra quotes so ([][2:-2]) needed
 			
 #			l=(2450.00,'2018,6,7') # dep,date tuple
@@ -357,9 +502,9 @@ class moniest (ui.View):
 #			time=datetime.strptime(t[1][2:-2],'%Y,%m,%d') #date tuple back to datetime
 		
 		# update balance GUIs
-		self.b_ext_balance.text= str(round((float(self.b_real_balance.text)-sum),2))
+		self.b_ext_balance.text= '{:.2f}'.format(float(self.b_real_balance.text)-sum)
 		
-		self.b_slide_balance.text= str(round((float(self.b_real_balance.text)-sum_slide),2))
+		self.b_slide_balance.text= '{:.2f}'.format(float(self.b_real_balance.text)-sum_slide)
 		self.slide_label.text=str(self.slide_date)[:10]
 
 	def will_close(self):
@@ -377,7 +522,7 @@ class moniest (ui.View):
 # 5. verify csv has new column and all old and new data
 # 6. finally, add new column to read()
 # todo: self detect new column?
-fields= ['idx','name','balance','due_day','repeat','bank_bal','bank_date','paid']
+fields= ['idx','name','balance','due_day','repeat','bank_bal','bank_date','paid','cycle']
 
 def read_acc_list():
 	# initial check to see if csv is empty
@@ -399,7 +544,7 @@ def read_acc_list():
 		for idx,row in enumerate(reader):
 			ac= account(idx_val=idx, name_val=row['name'], bal_val=row['balance'], due_day_val=row['due_day'], repeat_val=row['repeat'],
 			dep_val=row['bank_bal'],
-			dep_date_val=row['bank_date'], paid_val=row['paid'] )
+			dep_date_val=row['bank_date'], paid_val=row['paid'], cycle_val=row['cycle'] )
 			acc_list.append(ac)
 	return acc_list
 
@@ -409,7 +554,7 @@ def write_acc_list(acc_list):
 		writer.writeheader()
 		for i in range(len(acc_list)):
 			writer.writerow ({ 'idx':i , 'name':acc_list[i].name , 'balance':acc_list[i].balance, 'due_day': acc_list[i].due_day, 'repeat':acc_list[i].repeat, 'bank_bal':acc_list[i].bank_balance,
-			'bank_date':acc_list[i].bank_date, 'paid':acc_list[i].paid })
+			'bank_date':acc_list[i].bank_date, 'paid':acc_list[i].paid, 'cycle':acc_list[i].cycle })
 			
 ########### Button Actions ##################
 #############################################
@@ -438,15 +583,16 @@ def add_account_tapped(sender):
 	adda.sv.add_subview (acc_fld.acc_field)
 	adda.sv.add_subview (acc_fld.bal_field)
 	adda.sv.add_subview (acc_fld.due_button)
+	adda.sv.add_subview (acc_fld.switch)
+	adda.sv.add_subview (acc_fld.paid_button)
 
 	adda.next_y_pos+=50
 	
 def ext_date_tapped(sender):
 	s=sender
-	#returns set{0,2}
 	sv=sender.superview
+	#returns set{0,2}
 	idx=s.selected_index
-	sleep(0.5)
 	
 	today_date=datetime.today()
 
@@ -454,13 +600,15 @@ def ext_date_tapped(sender):
 	sv.set_needs_display()
 		
 def slider_changed(sender):
+	''' Continuous mode had to be false to aleviate pythonista dropping out. 
+	'''
 	s=sender
 	sv=sender.superview
 	idx=sender.value
-	
 	today_date=datetime.today()
 	
 	sv.slide_date=today_date + (idx)*timedelta(days=90)
+
 	sv.set_needs_display()
 	
 def main():	
