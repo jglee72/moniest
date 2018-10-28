@@ -224,7 +224,7 @@ class moniest (ui.View):
 	global done_pushed
 	
 	@ui.in_background
-	def textfield_did_begin_editing(self,textfield):
+	def textview_did_begin_editing(self,textfield):
 		if(textfield.placeholder=='Bank Bal'):
 			field1={'type':'number','key':'balance','title':'Current Balance:  ','tint_color':'#346511','value':'{:.2f}'.format(float(textfield.text))}
 			field2={'type':'number','key':'deposit1','title':'Deposit Amount:  ','value':'{:.2f}'.format( float(self.acc_list[1].bank_balance))}
@@ -324,21 +324,21 @@ class moniest (ui.View):
 		
 		# Bank balances
 		# todo: should this be a class of 'accounts'
-		self.b_real_balance = ui.TextField(frame=(10,530,110,45), placeholder = 'Bank Bal' , text='{:.2f}'.format(float(self.acc_list[0].bank_balance)) , keyboard_type=ui.KEYBOARD_NUMBERS , border_width=0,border_radius=5 , bordered=True, delegate=self)
+		self.b_real_balance = ui.TextView(frame=(10,530,110,45), placeholder = 'Bank Bal' , text='{:.2f}'.format(float(self.acc_list[0].bank_balance)) , keyboard_type=ui.KEYBOARD_NUMBERS , border_width=0,border_radius=5 , bordered=True, delegate=self,font=('Verdana',17))
 
 		self.add_subview(self.b_real_balance)
 		
 		self.real_label= ui.Label(frame=(10,565,110,45),text='Bank Bal')
 		self.add_subview(self.real_label)
 		
-		self.b_ext_balance = ui.TextField(frame=(130,530,110,45),text='678.65',editable=False,selected=False,border_width=0)
+		self.b_ext_balance = ui.TextView(frame=(130,530,110,45),text='678.65',font=('Verdana',17),editable=False,selectable=False,border_width=0)
 		self.b_ext_balance.bordered=True
 		self.add_subview(self.b_ext_balance)
 		
 		self.ext_label= ui.Label(frame=(130,565,110,45),text='ext Bal')
 		self.add_subview(self.ext_label)
 		
-		self.b_slide_balance = ui.TextField(frame=(250,530,110,45),text='-86.76',border_radius=20,border_color='black',border_width=0,editable=False)
+		self.b_slide_balance = ui.TextView(frame=(250,530,110,45),text='-86.76',font=('Verdana',17),border_radius=20,border_color='black',border_width=0,editable=False,selectable=False)
 		self.add_subview(self.b_slide_balance)
 		
 		self.slide_label= ui.Label(frame=(250,565,110,45),text='slide Bal')
