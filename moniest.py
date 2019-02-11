@@ -1,6 +1,6 @@
 # coding: utf-8
 # 
-#todo: due date intervals other than monthly
+#todo: due date intervals other than monthly: DONE
 #todo: 'delete' account or 'cancel out'
 #todo: accounts that won't be paid off;
 # how to indicate paymet plan within balance
@@ -25,6 +25,11 @@
 #		bi_monthly, monthly. fine for equal 
 #		payments; new column 
 #
+# 2018-11-22
+#   Change bill balance to a popup window 
+#   and include all date functions as well
+#   recurring bill settings.
+#
 import ui
 from time import sleep
 from datetime import *
@@ -40,6 +45,7 @@ bi_weekly=15
 bi_monthly=60
 monthly=30
 yearly=365
+none=0
 
 ########### Class Definitions ############
 ##########################################
@@ -47,7 +53,7 @@ class account (object):
 	'''Class for handling data for each account
 	Currently all data is handled directly -i.e. there is no class modules to handle data security at the moment. 
 	'''
-	def __init__(self,idx_val=None,name_val='',bal_val='0.0',due_day_val= datetime.strftime(datetime.today(),'%Y,%m,%d'),repeat_val=True,dep_val=0.0, dep_date_val= datetime.today(), paid_val=False,cycle_val=monthly):
+	def __init__(self,idx_val=None,name_val='',bal_val='0.0',due_day_val= datetime.strftime(datetime.today(),'%Y,%m,%d'),repeat_val=True,dep_val=0.0, dep_date_val= datetime.today(), paid_val=0.00,cycle_val=monthly):
 		self.idx=idx_val
 		self.name=name_val
 		self.balance=bal_val
@@ -102,67 +108,84 @@ class accountField (ui.View):
 	def repeat_changed(self,sender):
 		acc_list= sender.superview.superview.acc_list
 		sv=sender.superview
-		#save recur enable/disable
-		acc_list[self.idx].repeat=sender.value
+		# get current balance
+		balance_new = sender.text
 		#get cycle value for default
 		cycle = acc_list[self.idx].cycle
-		
-		if (sender.value):
-			field1={'type':'number','key':'balance','title':'Current Bill Amount:  ','value':'{:0.2f}'.format(float(acc_list[self.idx].balance))}
-			field2={'type':'switch','key':'bi_weekly','title':'Bi Weekly','value':True if float(cycle) == bi_weekly else False}
+		if(float(acc_list[self.idx].paid) == 0.00):
+			amt_pay = balance_new			
+		else:
+			amt_pay = acc_list[self.idx].paid
+		field1={'type':'number','key':'balance','title':'Current Balance:  ','value':'{:0.2f}'.format(float(balance_new))}
+		field1_2={'type':'number','key':'sched_payment','title':'Scheduled Payment:  ','value':'{:0.2f}'.format(float(amt_pay))}
+		field2={'type':'switch','key':'bi_weekly','title':'Bi Weekly','value':True if float(cycle) == bi_weekly else False}
+		field3={'type':'switch','key':'bi_monthly','title':'Bi-Monthly',
+		'value':True if float(cycle) == bi_monthly else False}
+		field4={'type':'switch','key':'monthly','title':'Monthly','value':True if float(cycle) == monthly else False}
+		field5={'type':'switch','key':'yearly','title':'Yearly','value':True if float(cycle) == yearly else False}
+		field6={'type':'switch','key':'none','title':'None','value':True if float(cycle) == none else False}	
 			
-			field3={'type':'switch','key':'bi_monthly','title':'Bi-Monthly',
-			'value':True if float(cycle) == bi_monthly else False}
-			field4={'type':'switch','key':'monthly','title':'Monthly','value':True if float(cycle) == monthly else False}
-			field5={'type':'switch','key':'yearly','title':'Yearly','value':True if float(cycle) == yearly else False}
-			
-			t1=[field1]
-			t2=[field2,field3,field4,field5]
-			s1='Withdrawl Amount',t1
-			s2='Cycle',t2
-		
-			sect=(s1,s2)
-			answer=dialogs.form_dialog(title='Recurring accounts', sections=sect, done_button_title='Finished')
-			
+		t1=[field1,field1_2]
+		t2=[field2,field3,field4,field5,field6]
+		s1='Withdrawl Amount',t1
+		s2='Cycle',t2
+	
+		sect=(s1,s2)
+		answer=dialogs.form_dialog(title='Recurrence Menu', sections=sect, done_button_title='Finished')
+		if(not answer == None):
 			d_balance=answer['balance']
 			d_weekly=answer['bi_weekly']
 			d_bi_monthly=answer['bi_monthly']
 			d_monthly=answer['monthly']
 			d_yearly=answer['yearly']
+			d_none = answer['none']
+			d_paid = answer['sched_payment']
 			
 			if (d_weekly):
 				acc_list[self.idx].cycle=bi_weekly
+				recur_str='bi-week'
 			if  (d_monthly):
 				acc_list[self.idx].cycle=monthly
+				recur_str='monthly'
 			if  (d_bi_monthly):
 				acc_list[self.idx].cycle=bi_monthly
+				recur_str='bi-month'
 			if  (d_yearly):
 				acc_list[self.idx].cycle=yearly
-			
+				recur_str='yearly'
+			if  (d_none):
+				acc_list[self.idx].cycle=none
+				recur_str='one-time'
+		
 			acc_list[self.idx].balance=d_balance
 			self.bal_field.text=d_balance
-	
+			self.recur_status.text = recur_str
+			acc_list[self.idx].paid=d_paid
+		
 	def textfield_did_end_editing(self, textfield):
 		global done_pushed
 		done_pushed=True
 		if(textfield.placeholder=='Balance'):
 			textfield.text_color='black'
 			textfield.superview.superview.acc_list[self.idx].balance=float(textfield.text)
-			textfield.superview.superview.acc_list[self.idx].paid=False
 			
 			# limit to, or add, 2 decimal places as needed
 			textfield.text='{:.2f}'.format(float(textfield.text))
 		
 		elif(textfield.placeholder=='Account'):
 			textfield.superview.superview.acc_list[self.idx].name=textfield.text
-		
+
 	@ui.in_background	
 	def textfield_did_begin_editing (self, textfield):
+		# setup and record previous vals
 		old_text=textfield.text
 		global cancel_pushed
 		global done_pushed
 		# clear done from previous end editing
 		done_pushed= False
+		# open balance/due_day view
+#		if(textfield.placeholder=="Balance"):
+
 		while (not(done_pushed) and not(cancel_pushed)):
 			sleep(0.5)
 		#'Cancel' was pushed
@@ -203,14 +226,27 @@ class accountField (ui.View):
 		
 		self.frame_location = (frame_loc[0]+self.frame_gw_,frame_loc[1])
 		
-		self.bal_field= ui.TextField(frame=self.frame_location+(self.frame_wh),bg_color=(.36, .54, .67), font=('Rockwell',17), text_color= 'grey' if acc.paid == 'True' else 'black', border_color='black', placeholder='Balance',text='{:.2f}'.format(float(acc.balance)),border_width=2, border_radius=20,alignment=ui.ALIGN_LEFT,alpha=0.5,selected=(True),editable=True,keyboard_type=ui.KEYBOARD_NUMBERS,delegate=self)
+		self.bal_field= ui.TextField(frame=self.frame_location+(self.frame_wh),bg_color=(.36, .54, .67), font=('Rockwell',17), text_color= 'grey' if acc.paid == 'True' else 'black', border_color='black', placeholder='Balance',text='{:.2f}'.format(float(acc.balance)),border_width=2, border_radius=20,alignment=ui.ALIGN_LEFT,alpha=0.5,selected=(True),editable=True,keyboard_type=ui.KEYBOARD_NUMBERS,action=self.repeat_changed, delegate=self)
 
 		self.frame_location = (self.frame_location[0]+self.frame_gw-5,frame_loc[1]-15)
 		
 		self.due_button = ui.Button(title=(acc.due_day[:10]), font=('AmericanTypewriter',17),action=self.due_button_tapped)
 		self.due_button.frame = self.frame_location+(self.frame_wh)
 		
-		self.switch= ui.Switch(frame= (self.frame_location[0],(self.frame_location[1]+30),51,31),action=self.repeat_changed,border_width=0, border_radius=15, value= True if acc.repeat=='True' else False, bg_color='#c1c1c1',delegate=self)
+		# fill initial recur status in field
+		recur_str = 'default'
+		if (float(acc.cycle) == bi_weekly):
+			recur_str='bi-week'
+		if  (float(acc.cycle) == monthly):
+			recur_str='monthly'
+		if  (float(acc.cycle) == bi_monthly):
+			recur_str='bi-month'
+		if  (float(acc.cycle) == yearly):
+			recur_str='yearly'
+		if  (float(acc.cycle) == none):
+			recur_str='one-time'
+		
+		self.recur_status= ui.TextView(frame= (self.frame_location[0],(self.frame_location[1]+30),90,30),font=('AmericanTypewriter',16),border_width=0, border_radius=15, text= recur_str, bg_color='#c1c1c1',editable=False)
 		
 		self.paid_button = ui.Button(frame=(self.frame_location[0]+60,(self.frame_location[1]+30),70,31), title='$$', action=self.paid_button, border_color='black',border_width=2)
 		
@@ -271,8 +307,8 @@ class moniest (ui.View):
 			self.sv.add_subview (self.acc_fld.acc_field)
 			self.sv.add_subview (self.acc_fld.bal_field)
 			self.sv.add_subview (self.acc_fld.due_button)
-			self.sv.add_subview (self.acc_fld.switch)
-			self.sv.add_subview (self.acc_fld.paid_button)
+			self.sv.add_subview (self.acc_fld.recur_status)
+#			self.sv.add_subview (self.acc_fld.paid_button)
 	def save_button_(self,sender):
 		write_acc_list(self.acc_list)
 		console.hud_alert('Saved')
@@ -296,7 +332,7 @@ class moniest (ui.View):
 		
 		#Scrollview for all accounts: increases
 		#total on iphone; keyboard non-blocking
-		self.sv = ui.ScrollView(frame = (0,0,w,h-245),bg_color='#e2e2e2',shows_vertical_scroll_indicator=False,scroll_enabled=True,indicator_style='#ade4ed',flex='')
+		self.sv = ui.ScrollView(frame = (0,0,w,h-270),bg_color='#e2e2e2',shows_vertical_scroll_indicator=False,scroll_enabled=True,indicator_style='#ade4ed',flex='')
 	
 		#important content size must be bigger than scrollview to allow for scrolling
 		self.sv.content_size = (w, h*2) 
@@ -309,39 +345,39 @@ class moniest (ui.View):
 		self.next_y_pos= (len(self.acc_list)*50+10)
 		
 		# button to add new account
-		self.add_account = ui.Button(title='Add Account',font=('Copperplate',17),frame=(10,440,0,0),action=add_account_tapped,border_width=0,border_color='#676767')
+		self.add_account = ui.Button(title='Add Account',font=('Copperplate',17),frame=(10,h-255,0,0),action=add_account_tapped,border_width=0,border_color='#676767')
 
 		self.add_subview(self.add_account)
 		
 		#Extended date picker
-		self.ext_date_seg = ui.SegmentedControl (segments=('10D','20D','30D'), frame=(170,445,180,35),selected_index=-1 , action=ext_date_tapped)
+		self.ext_date_seg = ui.SegmentedControl (segments=('10D','20D','30D'), frame=(170,h-255,180,35),selected_index=-1 , action=ext_date_tapped)
 		
 		self.add_subview(self.ext_date_seg)
 		
 		# slider to calculate slide date balance
-		self.date_slider= ui.Slider(frame=(10,500,350,10),action=slider_changed, continuous=False)
+		self.date_slider= ui.Slider(frame=(10,h-205,350,10),action=slider_changed, continuous=False)
 		self.add_subview(self.date_slider)
 		
 		# Bank balances
 		# todo: should this be a class of 'accounts'
-		self.b_real_balance = ui.TextView(frame=(10,530,110,45), placeholder = 'Bank Bal' , text='{:.2f}'.format(float(self.acc_list[0].bank_balance)) , keyboard_type=ui.KEYBOARD_NUMBERS , border_width=0,border_radius=5 , bordered=True, delegate=self,font=('Verdana',17))
+		self.b_real_balance = ui.TextView(frame=(10,h-180,110,45), placeholder = 'Bank Bal' , text='{:.2f}'.format(float(self.acc_list[0].bank_balance)) , keyboard_type=ui.KEYBOARD_NUMBERS , border_width=0,border_radius=5 , bordered=True, delegate=self,font=('Verdana',17))
 
 		self.add_subview(self.b_real_balance)
 		
-		self.real_label= ui.Label(frame=(10,565,110,45),text='Bank Bal')
+		self.real_label= ui.Label(frame=(10,h-140,110,45),text='Bank Bal')
 		self.add_subview(self.real_label)
 		
-		self.b_ext_balance = ui.TextView(frame=(130,530,110,45),text='678.65',font=('Verdana',17),editable=False,selectable=False,border_width=0)
+		self.b_ext_balance = ui.TextView(frame=(130,h-180,110,45),text='678.65',font=('Verdana',17),editable=False,selectable=False,border_width=0)
 		self.b_ext_balance.bordered=True
 		self.add_subview(self.b_ext_balance)
 		
-		self.ext_label= ui.Label(frame=(130,565,110,45),text='ext Bal')
+		self.ext_label= ui.Label(frame=(130,h-140,110,45),text='ext Bal')
 		self.add_subview(self.ext_label)
 		
-		self.b_slide_balance = ui.TextView(frame=(250,530,110,45),text='-86.76',font=('Verdana',17),border_radius=20,border_color='black',border_width=0,editable=False,selectable=False)
+		self.b_slide_balance = ui.TextView(frame=(250,h-180,110,45),text='-86.76',font=('Verdana',17),border_radius=20,border_color='black',border_width=0,editable=False,selectable=False)
 		self.add_subview(self.b_slide_balance)
 		
-		self.slide_label= ui.Label(frame=(250,565,110,45),text='slide Bal')
+		self.slide_label= ui.Label(frame=(250,h-140,110,45),text='slide Bal')
 		self.add_subview(self.slide_label)
 					
 	def draw(self): 
@@ -371,7 +407,7 @@ class moniest (ui.View):
 			# get cycle info from account
 			cycle = int(i.cycle)
 
-			if (recur=='True'):
+			if (cycle):
 				# first case: today is less than bill 
 				# due day - ie normal
 				if (today < due_day_0):
@@ -404,7 +440,8 @@ class moniest (ui.View):
 						ii+=1
 						if self.ext_date > due_day_4:
 							ii+=1
-			sum+= ii * (float(i.balance))
+#			sum+= ii * (float(i.balance))
+			sum+= ii * (float(i.paid))
 #			if ii: print('ext',i.name,ii)
 			
 			ii=0
@@ -421,7 +458,8 @@ class moniest (ui.View):
 									ii+=1
 									if self.slide_date > due_day_6:
 										ii+=1
-			sum_slide+= ii * (float(i.balance))
+#			sum_slide+= ii * (float(i.balance))
+			sum_slide+= ii * (float(i.paid))
 #			if ii: print('slide',i.name,ii)
 				
 		###########now add deposits##############
@@ -491,15 +529,6 @@ class moniest (ui.View):
 					if self.slide_date > dep2_90:
 						ii+=1
 		sum_slide-= ii * (float(self.acc_list[2].bank_balance))
-#		if ii: print('slide_dep2',ii)			
-		
-			# example of how to store mulitple data in a single csv cell and then extract it (painstakenly); date somehow has extra quotes so ([][2:-2]) needed
-			
-#			l=(2450.00,'2018,6,7') # dep,date tuple
-#			s=str(l)					# csv turns to str()
-#			t=s.split(",",1)	#aftr read turn back to tuple, stop after 1 x ','
-#			float(t[0][1:])			#dep back to float
-#			time=datetime.strptime(t[1][2:-2],'%Y,%m,%d') #date tuple back to datetime
 		
 		# update balance GUIs
 		self.b_ext_balance.text= '{:.2f}'.format(float(self.b_real_balance.text)-sum)
@@ -583,8 +612,8 @@ def add_account_tapped(sender):
 	adda.sv.add_subview (acc_fld.acc_field)
 	adda.sv.add_subview (acc_fld.bal_field)
 	adda.sv.add_subview (acc_fld.due_button)
-	adda.sv.add_subview (acc_fld.switch)
-	adda.sv.add_subview (acc_fld.paid_button)
+	adda.sv.add_subview (acc_fld.recur_status)
+#	adda.sv.add_subview (acc_fld.paid_button)
 
 	adda.next_y_pos+=50
 	
