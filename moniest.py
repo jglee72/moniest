@@ -30,6 +30,11 @@
 #   and include all date functions as well
 #   recurring bill settings.
 #
+# 2019-03-28
+#		Remove paid button references as it
+#		not used anymore, change bill balance
+#		to open window; change some names
+#		for clarity. 
 import ui
 from time import sleep
 from datetime import *
@@ -50,7 +55,7 @@ none=0
 ########### Class Definitions ############
 ##########################################
 class account (object):
-	'''Class for handling data for each account
+	'''Class for handling data for each account+
 	Currently all data is handled directly -i.e. there is no class modules to handle data security at the moment. 
 	'''
 	def __init__(self,idx_val=None,name_val='',bal_val='0.0',due_day_val= datetime.strftime(datetime.today(),'%Y,%m,%d'),repeat_val=True,dep_val=0.0, dep_date_val= datetime.today(), paid_val=0.00,cycle_val=monthly):
@@ -72,20 +77,19 @@ class accountField (ui.View):
 	global done_pushed
 	global cancel_pushed
 	# datepicker needs background running or 
-	# didn't return or wouldn't go away?	- can't remember
 	@ui.in_background
-	def due_button_tapped(self,sender):
+	def bt_due_day(self,sender):
 		global done_pushed
 		global cancel_pushed
 		v=sender
 		s_y_pos=v.frame[1]+50
-		w=sender.superview
+		w=sender.supervie
 		v.due_button_pressed=True
 
 		#get due day in datetime format to pre-fill datepicker with current due date
 		due_day_picker = datetime.strptime(sender.superview.superview.acc_list[self.idx].due_day,'%Y,%m,%d')
 		
-		#datepicker below account info for upper positions, and above for lower poitions. aleviated keyboard cover-up. 
+		#datepicker below account info for upper positions, and above for lower positions. aleviated keyboard cover-up. 
 		ext_date= ui.DatePicker(action=None,frame=(0,(s_y_pos if s_y_pos<300 else s_y_pos-150) ,300,100),mode=ui.DATE_PICKER_MODE_DATE,background_color='white',date=due_day_picker)
 		
 		w.add_subview(ext_date)
@@ -104,14 +108,18 @@ class accountField (ui.View):
 		acc_list[self.idx].due_day= datetime.strftime(ext_date.date,'%Y,%m,%d')
 	
 	# Delegate functions within class definition.  Generic names need checks as they are called by any associated (i.e. textfield) ui object	
-	@ui.in_background
-	def repeat_changed(self,sender):
+	
+	#Bill Balance Field Action
+#	@ui.in_background
+	def bill_balance_action(self, sender):
 		acc_list= sender.superview.superview.acc_list
 		sv=sender.superview
 		# get current balance
 		balance_new = sender.text
 		#get cycle value for default
 		cycle = acc_list[self.idx].cycle
+		# get name
+		name = acc_list[self.idx].name
 		if(float(acc_list[self.idx].paid) == 0.00):
 			amt_pay = balance_new			
 		else:
@@ -128,10 +136,10 @@ class accountField (ui.View):
 		t1=[field1,field1_2]
 		t2=[field2,field3,field4,field5,field6]
 		s1='Withdrawl Amount',t1
-		s2='Cycle',t2
-	
+		s2='Bill Cycle',t2
 		sect=(s1,s2)
-		answer=dialogs.form_dialog(title='Recurrence Menu', sections=sect, done_button_title='Finished')
+		
+		answer=dialogs.form_dialog(title= (name + ' Menu'), sections=sect,done_button_title='Finished')
 		if(not answer == None):
 			d_balance=answer['balance']
 			d_weekly=answer['bi_weekly']
@@ -156,7 +164,7 @@ class accountField (ui.View):
 			if  (d_none):
 				acc_list[self.idx].cycle=none
 				recur_str='one-time'
-		
+			#update account list
 			acc_list[self.idx].balance=d_balance
 			self.bal_field.text=d_balance
 			self.recur_status.text = recur_str
@@ -171,10 +179,11 @@ class accountField (ui.View):
 			
 			# limit to, or add, 2 decimal places as needed
 			textfield.text='{:.2f}'.format(float(textfield.text))
-		
 		elif(textfield.placeholder=='Account'):
 			textfield.superview.superview.acc_list[self.idx].name=textfield.text
-
+		textfield.end_editing()
+		return(True)
+		
 	@ui.in_background	
 	def textfield_did_begin_editing (self, textfield):
 		# setup and record previous vals
@@ -184,33 +193,20 @@ class accountField (ui.View):
 		# clear done from previous end editing
 		done_pushed= False
 		# open balance/due_day view
-#		if(textfield.placeholder=="Balance"):
+		if(textfield.placeholder=="Balance"):
+			self.bill_balance_action(textfield)
 
 		while (not(done_pushed) and not(cancel_pushed)):
 			sleep(0.5)
 		#'Cancel' was pushed
 		if cancel_pushed==True:
 			cancel_pushed=False
-			textfield.end_editing()
 			#temp data needs to be redrawn
 			textfield.text=old_text
-
 		#'Done' was pushed
 		else:
 			done_pushed = False
-			textfield.end_editing()
 
-	# Paid button will grey current bal: use when bill is actually setup or is paid in real life so we can ignore for now.
-	#is it worth doing acount updates?
-	def paid_button(self,sender):
-		sv=sender.superview.superview
-		if sv.acc_list[self.idx].paid == True: 		
-			sv.acc_list[self.idx].paid=False
-			self.bal_field.text_color='black'
-		else:
-			sv.acc_list[self.idx].paid=True
-			self.bal_field.text_color='grey'
-	
 	def __init__(self, frame_loc=(0,100),acc=account()):
 		
 		self.frame_location=()
@@ -222,15 +218,18 @@ class accountField (ui.View):
 		
 		self.idx=acc.idx
 		
+		#account name field
 		self.acc_field= ui.TextField(frame=frame_loc+(self.frame_wh_),bg_color=(.36, .54, .67),text_color=('#060606'),font=('Rockwell',17), placeholder='Account', text=acc.name, border_color=(.0, .0, .0),border_width=2,border_radius=20,alignment=ui.ALIGN_LEFT,alpha=0.5,selected=(False),editable=True,delegate=self)
 		
 		self.frame_location = (frame_loc[0]+self.frame_gw_,frame_loc[1])
 		
-		self.bal_field= ui.TextField(frame=self.frame_location+(self.frame_wh),bg_color=(.36, .54, .67), font=('Rockwell',17), text_color= 'grey' if acc.paid == 'True' else 'black', border_color='black', placeholder='Balance',text='{:.2f}'.format(float(acc.balance)),border_width=2, border_radius=20,alignment=ui.ALIGN_LEFT,alpha=0.5,selected=(True),editable=True,keyboard_type=ui.KEYBOARD_NUMBERS,action=self.repeat_changed, delegate=self)
-
+		#bill balance field
+		self.bal_field= ui.TextField(frame=self.frame_location+(self.frame_wh),bg_color=(.36, .54, .67), font=('Rockwell',17), text_color= 'grey' if acc.paid == 'True' else 'black', border_color='black', placeholder='Balance',text='{:.2f}'.format(float(acc.balance)),border_width=2, border_radius=20,alignment=ui.ALIGN_LEFT,alpha=0.5,selected=(False),editable=False,keyboard_type=ui.KEYBOARD_NUMBERS, delegate=self)
+#rem fr above:action=self.bill_balance_action
 		self.frame_location = (self.frame_location[0]+self.frame_gw-5,frame_loc[1]-15)
 		
-		self.due_button = ui.Button(title=(acc.due_day[:10]), font=('AmericanTypewriter',17),action=self.due_button_tapped)
+		#bill due date field
+		self.due_button = ui.Button(title=(acc.due_day[:10]), font=('AmericanTypewriter',17),action=self.bt_due_day)
 		self.due_button.frame = self.frame_location+(self.frame_wh)
 		
 		# fill initial recur status in field
@@ -246,9 +245,8 @@ class accountField (ui.View):
 		if  (float(acc.cycle) == none):
 			recur_str='one-time'
 		
+		#bill frequency field
 		self.recur_status= ui.TextView(frame= (self.frame_location[0],(self.frame_location[1]+30),90,30),font=('AmericanTypewriter',16),border_width=0, border_radius=15, text= recur_str, bg_color='#c1c1c1',editable=False)
-		
-		self.paid_button = ui.Button(frame=(self.frame_location[0]+60,(self.frame_location[1]+30),70,31), title='$$', action=self.paid_button, border_color='black',border_width=2)
 		
 #===================================#		
 #++++++++++ MAIN CLASS++++++++++++++#
@@ -259,6 +257,7 @@ class moniest (ui.View):
 	'''
 	global done_pushed
 	
+	#bank balance field (action)
 	@ui.in_background
 	def textview_did_begin_editing(self,textfield):
 		if(textfield.placeholder=='Bank Bal'):
@@ -278,25 +277,27 @@ class moniest (ui.View):
 			s3='Recurring Deposit 2',t3
 		
 			sect=(s1,s2,s3)
-			
 			answer=dialogs.form_dialog(title='Bank Balance Settings',sections=sect,done_button_title='Finished')
-			
-			d_bal=answer['balance']
-			d_dep1=answer['deposit1']
-			d_dep1_date=answer['dep1_date']
-			d_dep2=answer['deposit2']
-			d_dep2_date=answer['dep2_date']
-			# fill account list bank balaces
-			# dates require conversion to string 
-			# prior to csv write
-			self.acc_list[0].bank_balance= d_bal
-			self.acc_list[1].bank_balance= d_dep1
-			self.acc_list[1].bank_date= datetime.strftime(d_dep1_date,'%Y,%m,%d')
-			self.acc_list[2].bank_balance=d_dep2
-			self.acc_list[2].bank_date= datetime.strftime(d_dep2_date,'%Y,%m,%d')
+			if (not(answer==None)):
+				d_bal=answer['balance']
+				d_dep1=answer['deposit1']
+				d_dep1_date=answer['dep1_date']
+				d_dep2=answer['deposit2']
+				d_dep2_date=answer['dep2_date']
+				# fill account list bank balaces
+				# dates require conversion to string 
+				# prior to csv write
+				self.acc_list[0].bank_balance= d_bal
+				self.acc_list[1].bank_balance= d_dep1
+				self.acc_list[1].bank_date= datetime.strftime(d_dep1_date,'%Y,%m,%d')
+				self.acc_list[2].bank_balance=d_dep2
+				self.acc_list[2].bank_date= datetime.strftime(d_dep2_date,'%Y,%m,%d')
 			# update balance on gui
 			self.set_needs_display()
-	
+
+	def textfield_did_end_editing(self, textfield):
+		textfield.end_editing()
+		return(True)
 	def add_a_subview(self,acc_list):
 		x_pos= 10
 		y_start =10
@@ -308,10 +309,19 @@ class moniest (ui.View):
 			self.sv.add_subview (self.acc_fld.bal_field)
 			self.sv.add_subview (self.acc_fld.due_button)
 			self.sv.add_subview (self.acc_fld.recur_status)
-#			self.sv.add_subview (self.acc_fld.paid_button)
+
 	def save_button_(self,sender):
 		write_acc_list(self.acc_list)
 		console.hud_alert('Saved')
+		
+	def done_button(self,sender):
+		global done_pushed
+		done_pushed=True
+		
+	def cancel_button(self,sender):
+		global cancel_pushed
+		cancel_pushed=True
+
 	def __init__(self):
 		w,h = ui.get_screen_size()
 		# main View frame	attributes
@@ -322,11 +332,10 @@ class moniest (ui.View):
 		self.flex=''
 		
 		# application buttons
-		self.right_button_items = (ui.ButtonItem(title='Done',action=done_button),ui.ButtonItem(title='Cancel',action=cancel_button))
+		self.right_button_items = (ui.ButtonItem(title='Done',action= self.done_button),ui.ButtonItem(title='Cancel',action=self.cancel_button))
 		
 		self.left_button_items = (ui.ButtonItem(title='Save',action=self.save_button_),)		
 				
-		
 		# retreive the database: f() returns a  list of accounts incl bank balance
 		self.acc_list=read_acc_list()
 		
@@ -360,7 +369,7 @@ class moniest (ui.View):
 		
 		# Bank balances
 		# todo: should this be a class of 'accounts'
-		self.b_real_balance = ui.TextView(frame=(10,h-180,110,45), placeholder = 'Bank Bal' , text='{:.2f}'.format(float(self.acc_list[0].bank_balance)) , keyboard_type=ui.KEYBOARD_NUMBERS , border_width=0,border_radius=5 , bordered=True, delegate=self,font=('Verdana',17))
+		self.b_real_balance = ui.TextView(frame=(10,h-180,110,45), placeholder = 'Bank Bal' , text='{:.2f}'.format(float(self.acc_list[0].bank_balance)) ,  border_width=0,border_radius=5 , bordered=True, delegate=self,font=('Verdana',17))
 
 		self.add_subview(self.b_real_balance)
 		
@@ -402,8 +411,6 @@ class moniest (ui.View):
 
 			due_day_1 = due_day_0
 			
-			# test for recurring bill enabled
-			recur = i.repeat
 			# get cycle info from account
 			cycle = int(i.cycle)
 
@@ -462,7 +469,7 @@ class moniest (ui.View):
 			sum_slide+= ii * (float(i.paid))
 #			if ii: print('slide',i.name,ii)
 				
-		###########now add deposits##############
+		###########now add deposits###########
 		# deduce first valid deposit day using datetime.day math and extrapolation
 		delta = dep1_date.day-datetime.today().day
 		
@@ -541,8 +548,20 @@ class moniest (ui.View):
 		'''
 		write_acc_list(self.acc_list)
 		
-########### CSV DB Functions ##############
-###########################################	
+##############Date Functions##############
+##########################################
+def next_bill_due_date( date, cycle,):
+	''' given an initial due date, and cycle, return 3-6 future dates from today
+	'''
+	pass
+	
+	
+	
+	
+	
+		
+########### CSV DB Functions ############
+##########################################
 # When adding new column need to write before reading (because the coulumn is not there yet, and read is first operation and will fail). All data can be overwritten so make copies, git, or dropbox csv prior. 
 # 1. add new column to 'fields'
 # 2. add new column to write()
@@ -585,17 +604,11 @@ def write_acc_list(acc_list):
 			writer.writerow ({ 'idx':i , 'name':acc_list[i].name , 'balance':acc_list[i].balance, 'due_day': acc_list[i].due_day, 'repeat':acc_list[i].repeat, 'bank_bal':acc_list[i].bank_balance,
 			'bank_date':acc_list[i].bank_date, 'paid':acc_list[i].paid, 'cycle':acc_list[i].cycle })
 			
-########### Button Actions ##################
-#############################################
+########### Button Actions ##############
+##########################################
 
 # Application buttons {Done,Cancel,Save} have a quirk (bug): they do not have a superview. therefore a global trigger is polled elsewhere. 'Save' required access to account list acc_list so a 'self' method was used
-def done_button(sender):
-	global done_pushed
-	done_pushed=True
-	
-def cancel_button(sender):
-	global cancel_pushed
-	cancel_pushed=True
+#where cancel and donewere 
 	
 # Other button actions
 	
