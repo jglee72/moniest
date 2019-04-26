@@ -2,8 +2,6 @@
 # 
 #todo: due date intervals other than monthly: DONE
 #todo: 'delete' account or 'cancel out'
-#todo: accounts that won't be paid off;
-# how to indicate paymet plan within balance
 
 # TIG version. Edit in pythonista from external files-->open, choose from TIG. Use apple 'file' to enable/see TIG files first. 
 #
@@ -35,13 +33,17 @@
 #		not used anymore, change bill balance
 #		to open window; change some names
 #		for clarity. 
+#	2019-04-23
+#		overhaul of date manipulation using 
+#		more datetime methods. bills and slide
+#		and extend dates use correct day
 import ui
 from time import sleep
 from datetime import *
 import console
 import csv
 import dialogs
-
+import operator
 # Globals:
 #__________#
 done_pushed=False
@@ -83,7 +85,7 @@ class accountField (ui.View):
 		global cancel_pushed
 		v=sender
 		s_y_pos=v.frame[1]+50
-		w=sender.supervie
+		w=sender.superview
 		v.due_button_pressed=True
 
 		#get due day in datetime format to pre-fill datepicker with current due date
@@ -390,14 +392,12 @@ class moniest (ui.View):
 		self.add_subview(self.slide_label)
 					
 	def draw(self): 
-#		print('+++++++++++++++++++++++++++++++')
+#		print('+++++++++++++++++++++++++++++')
 		self.b_real_balance.text= '{:.2f}'.format(float(self.acc_list[0].bank_balance))
 		#reset summations for date calcs
 		sum=sum_slide=0.0	
 		
-		t_day= datetime.today().day
-		t_mo= datetime.today().month
-		t_yr= datetime.today().year
+
 		# date conversions for deposit date math
 		dep1_date = datetime.strptime(self.acc_list[1].bank_date,'%Y,%m,%d')
 		dep2_date = datetime.strptime(self.acc_list[2].bank_date,'%Y,%m,%d')
@@ -408,133 +408,123 @@ class moniest (ui.View):
 			#string conversion to datetime.datetime 
 			# Inial due day for future due dates 
 			due_day_0= datetime.strptime(i.due_day,'%Y,%m,%d')
-
-			due_day_1 = due_day_0
 			
 			# get cycle info from account
 			cycle = int(i.cycle)
 
 			if (cycle):
-				# first case: today is less than bill 
-				# due day - ie normal
-				if (today < due_day_0):
-					due_day_1 = due_day_0
-
-				#today is greater; how much
-				else:
-					days_delta = (today-due_day_0)
-
-					# Every 30 days is beyond next cycle
-					cycle_cnt = (days_delta.days //cycle) + 1
-					due_day_1 = due_day_0 + timedelta(days= cycle_cnt * cycle)
-			
+				due_day_future = next_bill_due_date(due_day_0,cycle)
+#				print(due_day_future)
 				# Need advance dates for accounts based on cycle settings
-				#todo: can this be a method
-				due_day_2= due_day_1 + timedelta(days=cycle)
-				due_day_3= due_day_2 + timedelta(days=cycle)
-				due_day_4= due_day_3 + timedelta(days=cycle)
-				if (cycle == bi_weekly):
-					due_day_5 = due_day_4 + timedelta(days=cycle)
-					due_day_6 = due_day_5 + timedelta(days=cycle)
-			#todo: only process if ext_date changes
-			# Extend update
+				due_day_1 = due_day_future[0]
+				due_day_2 = due_day_future[1]
+				due_day_3 = due_day_future[2]
+				due_day_4 = due_day_future[3]
+				if cycle == bi_weekly:
+					due_day_5 = due_day_future[4]			
+					due_day_6 = due_day_future[5]
+					due_day_7 = due_day_future[6]		
+					due_day_8 = due_day_future[7]												
+			# Extend update covers 30 days
 			ii=0
-			if self.ext_date > due_day_1:
+			if self.ext_date > due_day_1 and due_day_1 > today:
 				ii+=1
-				if self.ext_date > due_day_2:
+			if self.ext_date > due_day_2 and due_day_2 > today:
+				ii+=1
+#				print('z', self.ext_date,due_day_2)
+			if self.ext_date > due_day_3:
+				ii+=1
+				if self.ext_date > due_day_4:
 					ii+=1
-					if self.ext_date > due_day_3:
-						ii+=1
-						if self.ext_date > due_day_4:
-							ii+=1
-#			sum+= ii * (float(i.balance))
 			sum+= ii * (float(i.paid))
+#			print('sum extend',sum,ii)
 #			if ii: print('ext',i.name,ii)
 			
 			ii=0
-			if self.slide_date > due_day_1:
+			if self.slide_date > due_day_1 and due_day_1 > today:
 				ii+=1
-				if self.slide_date > due_day_2:
+			if self.slide_date > due_day_2 and due_day_2 > today:
+				ii+=1
+			if self.slide_date > due_day_3:
+				ii+=1
+				if self.slide_date > due_day_4:
 					ii+=1
-					if self.slide_date > due_day_3:
-						ii+=1
-						if self.slide_date > due_day_4:
+					if (cycle == bi_weekly):
+						if self.slide_date > due_day_5:
 							ii+=1
-							if (cycle == bi_weekly):
-								if self.slide_date > due_day_5:
-									ii+=1
-									if self.slide_date > due_day_6:
-										ii+=1
-#			sum_slide+= ii * (float(i.balance))
+							if self.slide_date > due_day_6:
+								ii+=1
+							if self.slide_date > due_day_7:
+								ii+= 1
 			sum_slide+= ii * (float(i.paid))
 #			if ii: print('slide',i.name,ii)
+#			print('sum slide',sum_slide)
 				
 		###########now add deposits###########
 		# deduce first valid deposit day using datetime.day math and extrapolation
-		delta = dep1_date.day-datetime.today().day
-		
-		if delta > 0:
-			dep1_date = datetime.today() + timedelta(days=abs(delta))
-			dep2_date = dep1_date + timedelta(days=15)
-		else:
-			dep1_date = datetime.today() - timedelta(days=abs(delta)) + timedelta(days=30) 
-			dep2_date = dep1_date - timedelta(days=15)
-		
-		#future date calculations:
-		dep1_30= dep1_date + timedelta(days=30)
-		dep1_60= dep1_date + timedelta(days=60)
-		dep1_90= dep1_date + timedelta(days=90)
-		dep2_30= dep2_date + timedelta(days=30)
-		dep2_60= dep2_date + timedelta(days=60)
-		dep2_90= dep2_date + timedelta(days=90)
+		deposit_1_dates = next_bill_due_date(dep1_date, monthly)
+		deposit_2_dates = next_bill_due_date(dep2_date, monthly)
+
+#		print(self.ext_date)
+		dep1_0= deposit_1_dates[0]
+		dep1_1= deposit_1_dates[1]
+		dep1_2= deposit_1_dates[2]
+		dep1_3= deposit_1_dates[3]
+		dep2_0= deposit_2_dates[0]
+		dep2_1= deposit_2_dates[1]
+		dep2_2= deposit_2_dates[2]
+		dep2_3= deposit_2_dates[3]
 		
 		# Extend update
 		ii=0
-		if self.ext_date > dep1_date:
+		if self.ext_date > dep1_0 and dep1_0 > today:
 			ii+=1
-			if self.ext_date > dep1_30:
+		if self.ext_date > dep1_1:
+			ii+=1
+			if self.ext_date > dep1_2:
 				ii+=1
-				if self.ext_date > dep1_60:
+				if self.ext_date > dep1_3:
 					ii+=1
-					if self.ext_date > dep1_90:
-						ii+=1
+#		print('ii_1: ',ii)
 		sum-= ii * (float(self.acc_list[1].bank_balance))
 #		if ii: print('ext_dep1',ii)
-			
+		
 		ii=0
-		if self.ext_date > dep2_date:
+		if self.ext_date > dep2_0 and dep2_0 > today:
 			ii+=1
-			if self.ext_date > dep2_30:
+		if self.ext_date > dep2_1:
+			ii+=1
+			if self.ext_date > dep2_2:
 				ii+=1
-				if self.ext_date > dep2_60:
+				if self.ext_date > dep2_3:
 					ii+=1
-					if self.ext_date > dep2_90:
-						ii+=1
+#		print('ii_2: ',ii)
 		sum-= ii * (float(self.acc_list[2].bank_balance))
 #		if ii: print('ext_dep2',ii)
+#		print('sum1',sum)
 			
 		# slide update
 		ii=0
-		if self.slide_date > dep1_date:
+		if self.slide_date > dep1_0 and dep1_0 > today:
 			ii+=1
-			if self.slide_date > dep1_30:
+		if self.slide_date > dep1_1:
+			ii+=1
+			if self.slide_date > dep1_2:
 				ii+=1
-				if self.slide_date > dep1_60:
+				if self.slide_date > dep1_3:
 					ii+=1
-					if self.slide_date > dep1_90:
-						ii+=1
 		sum_slide-= ii * (float(self.acc_list[1].bank_balance))
 #		if ii: print('slide_dep1',ii)			
 		
 		ii=0
-		if self.slide_date > dep2_date:
+		if self.slide_date > dep2_0 and dep2_0 > today:
 			ii+=1
-			if self.slide_date > dep2_30:
+		if self.slide_date > dep2_1:
+			ii+=1
+			if self.slide_date > dep2_2:
 				ii+=1
-				if self.slide_date > dep2_60:
+				if self.slide_date > dep2_3:
 					ii+=1
-					if self.slide_date > dep2_90:
-						ii+=1
 		sum_slide-= ii * (float(self.acc_list[2].bank_balance))
 		
 		# update balance GUIs
@@ -550,15 +540,76 @@ class moniest (ui.View):
 		
 ##############Date Functions##############
 ##########################################
-def next_bill_due_date( date, cycle,):
-	''' given an initial due date, and cycle, return 3-6 future dates from today
+def next_bill_due_date( bill_date, cycle):
+	''' given an initial due date, and cycle, return 3-6 future dates from today. eg: for (bi-)monthly, keep day static and increase month only. For bi-weekly, use 14 days delta and month increases
 	'''
-	pass
+	#test for monthly,bi-monthly to use date math instead of +timedeta(days)
+
+	t_day= datetime.today().day
+	t_mo= datetime.today().month
+	t_yr= datetime.today().year
 	
-	
-	
-	
-	
+	b_day= bill_date.day
+	b_mo= bill_date.month
+	b_yr= bill_date.year
+	dates=[]
+	if (cycle==bi_weekly):
+		# this month bill date:
+		this_bill = bill_date
+		this_mo = t_mo
+		this_yr = t_yr
+#		print(this_bill)
+		for i in range(4):
+			if this_mo > 12:
+				this_mo -= 12
+				this_yr += 1
+			#use time.replace(month=x+i)
+			this_bill = this_bill.replace(month=this_mo,day=b_day,year=this_yr)
+			dates.append(this_bill)
+			this_bill = this_bill.replace(month=this_mo,day=b_day+14, year=this_yr)
+			this_mo+=1
+			dates.append(this_bill)
+	elif (cycle==monthly):
+		this_bill = bill_date
+		this_mo = t_mo
+		this_yr = t_yr
+		for i in range(4):
+			if this_mo > 12:
+				this_mo -= 12
+				this_yr += 1
+			this_bill= this_bill.replace(month=this_mo,year=this_yr)
+			dates.append(this_bill)
+			this_mo+=1
+
+	elif (cycle==bi_monthly):#needs to know which month to start. maybe even odd?
+	#if true month is odd
+		odd_bill_month= b_mo%2
+		odd_this_month= t_mo%2
+		# bill odd today even = add mo
+		# bill even today odd = add mo
+		# both even do nothing
+		# both odd do nothing
+		if (operator.xor(odd_bill_month,  odd_this_month)):
+			this_mo = t_mo+1
+		else:
+			this_mo = t_mo
+			
+		this_bill = bill_date
+		this_yr = t_yr
+		for i in range(4):
+			if this_mo > 12:
+				this_mo -= 12
+				this_yr += 1
+			this_bill=this_bill.replace(month=this_mo,year=this_yr)
+			dates.append(this_bill)
+			this_mo+=2
+			
+	elif (cycle == yearly):
+		this_bill = bill_date
+		for i in range(4):
+			this_bill = this_bill.replace(year=t_yr+i)
+			dates.append(this_bill)
+	return dates
 		
 ########### CSV DB Functions ############
 ##########################################
