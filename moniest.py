@@ -1,7 +1,8 @@
 # coding: utf-8
 # 
-#todo: due date intervals other than monthly: DONE
-#todo: 'delete' account or 'cancel out'
+#DONE: due date intervals other than 
+# monthly
+#DONE: 'delete' account or 'cancel out'
 
 # TIG version. Edit in pythonista from external files-->open, choose from TIG. Use apple 'file' to enable/see TIG files first. 
 #
@@ -37,6 +38,13 @@
 #		overhaul of date manipulation using 
 #		more datetime methods. bills and slide
 #		and extend dates use correct day
+# 2019-04-25
+#		Optimization and cleanup
+#		Additon of 'delete account' method
+#		Change all dates to datetime.date
+#		todo: how to choose account to delete
+#		todo: how to remove specific subview
+#		todo: redraw screen to update
 import ui
 from time import sleep
 from datetime import *
@@ -60,7 +68,7 @@ class account (object):
 	'''Class for handling data for each account+
 	Currently all data is handled directly -i.e. there is no class modules to handle data security at the moment. 
 	'''
-	def __init__(self,idx_val=None,name_val='',bal_val='0.0',due_day_val= datetime.strftime(datetime.today(),'%Y,%m,%d'),repeat_val=True,dep_val=0.0, dep_date_val= datetime.today(), paid_val=0.00,cycle_val=monthly):
+	def __init__(self,idx_val=None,name_val='',bal_val='0.0',due_day_val= datetime.strftime(date.today(),'%Y,%m,%d'), repeat_val=True,dep_val=0.0, dep_date_val= date.today(), paid_val=0.00,cycle_val=monthly):
 		self.idx=idx_val
 		self.name=name_val
 		self.balance=bal_val
@@ -89,25 +97,26 @@ class accountField (ui.View):
 		v.due_button_pressed=True
 
 		#get due day in datetime format to pre-fill datepicker with current due date
-		due_day_picker = datetime.strptime(sender.superview.superview.acc_list[self.idx].due_day,'%Y,%m,%d')
+		due_day_datetime = datetime.strptime(sender.superview.superview.acc_list[self.idx].due_day,'%Y,%m,%d')
 		
 		#datepicker below account info for upper positions, and above for lower positions. aleviated keyboard cover-up. 
-		ext_date= ui.DatePicker(action=None,frame=(0,(s_y_pos if s_y_pos<300 else s_y_pos-150) ,300,100),mode=ui.DATE_PICKER_MODE_DATE,background_color='white',date=due_day_picker)
-		
-		w.add_subview(ext_date)
+		due_date_picker= ui.DatePicker(action=None,frame=(0,(s_y_pos if s_y_pos<300 else s_y_pos-150) ,300,100),mode=ui.DATE_PICKER_MODE_DATE,background_color='white',date=due_day_datetime)
+		w.add_subview(due_date_picker)
 		
 		while (not(done_pushed) and not(cancel_pushed)):
 			sleep(0.5)
-		w.remove_subview(ext_date)
+		w.remove_subview(due_date_picker)
 		done_pushed = False
 		if cancel_pushed==True:
 			cancel_pushed=False
 			return 
-		#'Done' was pushed
-		v.title=(str(ext_date.date))[:10]
+		#'Done' was pushed: update gui
+		due_pick_str=datetime.strftime(due_date_picker.date,'%Y,%m,%d')
+		v.title=(due_pick_str)
+	
 		#save to acc_list
 		acc_list= sender.superview.superview.acc_list
-		acc_list[self.idx].due_day= datetime.strftime(ext_date.date,'%Y,%m,%d')
+		acc_list[self.idx].due_day= due_pick_str
 	
 	# Delegate functions within class definition.  Generic names need checks as they are called by any associated (i.e. textfield) ui object	
 	
@@ -227,11 +236,11 @@ class accountField (ui.View):
 		
 		#bill balance field
 		self.bal_field= ui.TextField(frame=self.frame_location+(self.frame_wh),bg_color=(.36, .54, .67), font=('Rockwell',17), text_color= 'grey' if acc.paid == 'True' else 'black', border_color='black', placeholder='Balance',text='{:.2f}'.format(float(acc.balance)),border_width=2, border_radius=20,alignment=ui.ALIGN_LEFT,alpha=0.5,selected=(False),editable=False,keyboard_type=ui.KEYBOARD_NUMBERS, delegate=self)
-#rem fr above:action=self.bill_balance_action
-		self.frame_location = (self.frame_location[0]+self.frame_gw-5,frame_loc[1]-15)
 		
-		#bill due date field
-		self.due_button = ui.Button(title=(acc.due_day[:10]), font=('AmericanTypewriter',17),action=self.bt_due_day)
+		self.frame_location = (self.frame_location[0]+self.frame_gw-5,frame_loc[1]-15)
+
+		#bill due date button
+		self.due_button = ui.Button(title=str(acc.due_day), font=('AmericanTypewriter',17),action=self.bt_due_day)
 		self.due_button.frame = self.frame_location+(self.frame_wh)
 		
 		# fill initial recur status in field
@@ -266,10 +275,10 @@ class moniest (ui.View):
 			field1={'type':'number','key':'balance','title':'Current Balance:  ','tint_color':'#346511','value':'{:.2f}'.format(float(textfield.text))}
 			field2={'type':'number','key':'deposit1','title':'Deposit Amount:  ','value':'{:.2f}'.format( float(self.acc_list[1].bank_balance))}
 			field3={'type':'date','key':'dep1_date','title':'Deposit Date:  ','tint_color':'#000000',
-			'value':(datetime.strptime(self.acc_list[1].bank_date,'%Y,%m,%d'))}
+			'value': (datetime.strptime(self.acc_list[1].bank_date,'%Y,%m,%d'))}
 			field4={'type':'number','key':'deposit2','title':'Deposit Amount:  ','value':'{:.2f}'.format(float(self.acc_list[2].bank_balance))}
 			field5={'type':'date','key':'dep2_date','title':'Deposit Date:  ' ,'tint_color':'#000000',
-			'value':(datetime.strptime(self.acc_list[2].bank_date,'%Y,%m,%d'))}
+			'value': (datetime.strptime(self.acc_list[2].bank_date,'%Y,%m,%d'))}
 			
 			t1=[field1]
 			t2=[field2,field3]
@@ -281,11 +290,12 @@ class moniest (ui.View):
 			sect=(s1,s2,s3)
 			answer=dialogs.form_dialog(title='Bank Balance Settings',sections=sect,done_button_title='Finished')
 			if (not(answer==None)):
-				d_bal=answer['balance']
-				d_dep1=answer['deposit1']
-				d_dep1_date=answer['dep1_date']
-				d_dep2=answer['deposit2']
-				d_dep2_date=answer['dep2_date']
+				d_bal = answer['balance']
+				d_dep1 = answer['deposit1']
+				d_dep1_date = answer['dep1_date']
+				d_dep2 = answer['deposit2']
+				d_dep2_date = answer['dep2_date']
+
 				# fill account list bank balaces
 				# dates require conversion to string 
 				# prior to csv write
@@ -303,7 +313,7 @@ class moniest (ui.View):
 	def add_a_subview(self,acc_list):
 		x_pos= 10
 		y_start =10
-		y_delta = 50
+#		y_delta = 50
 
 		for idx,a in enumerate(acc_list):
 			self.acc_fld= accountField(frame_loc=(x_pos,(idx*50+y_start)),acc=a)
@@ -329,8 +339,8 @@ class moniest (ui.View):
 		# main View frame	attributes
 		self.name='Moniest'
 		self.background_color='#cacaca'
-		self.ext_date=datetime.today()
-		self.slide_date=datetime.today()
+		self.ext_date=date.today()
+		self.slide_date=date.today()
 		self.flex=''
 		
 		# application buttons
@@ -343,7 +353,7 @@ class moniest (ui.View):
 		
 		#Scrollview for all accounts: increases
 		#total on iphone; keyboard non-blocking
-		self.sv = ui.ScrollView(frame = (0,0,w,h-270),bg_color='#e2e2e2',shows_vertical_scroll_indicator=False,scroll_enabled=True,indicator_style='#ade4ed',flex='')
+		self.sv = ui.ScrollView(frame = (0,0,w,h-280),bg_color='#e2e2e2',shows_vertical_scroll_indicator=False,scroll_enabled=True,indicator_style='#ade4ed',flex='')
 	
 		#important content size must be bigger than scrollview to allow for scrolling
 		self.sv.content_size = (w, h*2) 
@@ -356,9 +366,14 @@ class moniest (ui.View):
 		self.next_y_pos= (len(self.acc_list)*50+10)
 		
 		# button to add new account
-		self.add_account = ui.Button(title='Add Account',font=('Copperplate',17),frame=(10,h-255,0,0),action=add_account_tapped,border_width=0,border_color='#676767')
+		self.add_account = ui.Button(title='Add Account',font=('Copperplate',17),frame=(10,h-275,0,0),action=add_account_tapped,border_width=0,border_color='#676767')
 
 		self.add_subview(self.add_account)
+		
+		# button to delete last account
+		self.rem_account = ui.Button(title='Rem Account',font=('Copperplate',17),frame=(10,h-245,0,0),action=rem_account_tapped,border_width=0,border_color='#676767')
+
+		self.add_subview(self.rem_account)
 		
 		#Extended date picker
 		self.ext_date_seg = ui.SegmentedControl (segments=('10D','20D','30D'), frame=(170,h-255,180,35),selected_index=-1 , action=ext_date_tapped)
@@ -402,19 +417,19 @@ class moniest (ui.View):
 		dep1_date = datetime.strptime(self.acc_list[1].bank_date,'%Y,%m,%d')
 		dep2_date = datetime.strptime(self.acc_list[2].bank_date,'%Y,%m,%d')
 		
-		today = datetime.today()
+		today = date.today()
 		
 		for i in (self.acc_list):
-			#string conversion to datetime.datetime 
+			#string conversion to datetime.date 
 			# Inial due day for future due dates 
-			due_day_0= datetime.strptime(i.due_day,'%Y,%m,%d')
+			due_day_0= datetime.strptime(i.due_day,'%Y,%m,%d').date()
 			
 			# get cycle info from account
 			cycle = int(i.cycle)
 
 			if (cycle):
 				due_day_future = next_bill_due_date(due_day_0,cycle)
-#				print(due_day_future)
+
 				# Need advance dates for accounts based on cycle settings
 				due_day_1 = due_day_future[0]
 				due_day_2 = due_day_future[1]
@@ -424,106 +439,95 @@ class moniest (ui.View):
 					due_day_5 = due_day_future[4]			
 					due_day_6 = due_day_future[5]
 					due_day_7 = due_day_future[6]		
-					due_day_8 = due_day_future[7]												
+					due_day_8 = due_day_future[7]			
+					
 			# Extend update covers 30 days
 			ii=0
-			if self.ext_date > due_day_1 and due_day_1 > today:
+			if self.ext_date >= due_day_1 and due_day_1 >= today:
 				ii+=1
-			if self.ext_date > due_day_2 and due_day_2 > today:
+			if self.ext_date >= due_day_2 and due_day_2 >= today:
 				ii+=1
-#				print('z', self.ext_date,due_day_2)
-			if self.ext_date > due_day_3:
+
+			if self.ext_date >= due_day_3:
 				ii+=1
-				if self.ext_date > due_day_4:
+				if self.ext_date >= due_day_4:
 					ii+=1
 			sum+= ii * (float(i.paid))
-#			print('sum extend',sum,ii)
-#			if ii: print('ext',i.name,ii)
 			
 			ii=0
-			if self.slide_date > due_day_1 and due_day_1 > today:
+			if self.slide_date >= due_day_1 and due_day_1 >= today:
 				ii+=1
-			if self.slide_date > due_day_2 and due_day_2 > today:
+			if self.slide_date >= due_day_2 and due_day_2 >= today:
 				ii+=1
-			if self.slide_date > due_day_3:
+			if self.slide_date >= due_day_3:
 				ii+=1
-				if self.slide_date > due_day_4:
+				if self.slide_date >= due_day_4:
 					ii+=1
 					if (cycle == bi_weekly):
-						if self.slide_date > due_day_5:
+						if self.slide_date >= due_day_5:
 							ii+=1
-							if self.slide_date > due_day_6:
+							if self.slide_date >= due_day_6:
 								ii+=1
-							if self.slide_date > due_day_7:
+							if self.slide_date >= due_day_7:
 								ii+= 1
 			sum_slide+= ii * (float(i.paid))
-#			if ii: print('slide',i.name,ii)
-#			print('sum slide',sum_slide)
 				
 		###########now add deposits###########
 		# deduce first valid deposit day using datetime.day math and extrapolation
 		deposit_1_dates = next_bill_due_date(dep1_date, monthly)
 		deposit_2_dates = next_bill_due_date(dep2_date, monthly)
 
-#		print(self.ext_date)
-		dep1_0= deposit_1_dates[0]
-		dep1_1= deposit_1_dates[1]
-		dep1_2= deposit_1_dates[2]
-		dep1_3= deposit_1_dates[3]
-		dep2_0= deposit_2_dates[0]
-		dep2_1= deposit_2_dates[1]
-		dep2_2= deposit_2_dates[2]
-		dep2_3= deposit_2_dates[3]
+		dep1_0= deposit_1_dates[0].date()
+		dep1_1= deposit_1_dates[1].date()
+		dep1_2= deposit_1_dates[2].date()
+		dep1_3= deposit_1_dates[3].date()
+		dep2_0= deposit_2_dates[0].date()
+		dep2_1= deposit_2_dates[1].date()
+		dep2_2= deposit_2_dates[2].date()
+		dep2_3= deposit_2_dates[3].date()
 		
 		# Extend update
 		ii=0
-		if self.ext_date > dep1_0 and dep1_0 > today:
+		if self.ext_date >= dep1_0 and dep1_0 >= today:
 			ii+=1
-		if self.ext_date > dep1_1:
+		if self.ext_date >= dep1_1:
 			ii+=1
-			if self.ext_date > dep1_2:
+			if self.ext_date >= dep1_2:
 				ii+=1
-				if self.ext_date > dep1_3:
+				if self.ext_date >= dep1_3:
 					ii+=1
-#		print('ii_1: ',ii)
 		sum-= ii * (float(self.acc_list[1].bank_balance))
-#		if ii: print('ext_dep1',ii)
-		
 		ii=0
-		if self.ext_date > dep2_0 and dep2_0 > today:
+		if self.ext_date >= dep2_0 and dep2_0 >= today:
 			ii+=1
-		if self.ext_date > dep2_1:
+		if self.ext_date >= dep2_1:
 			ii+=1
-			if self.ext_date > dep2_2:
+			if self.ext_date >= dep2_2:
 				ii+=1
-				if self.ext_date > dep2_3:
+				if self.ext_date >= dep2_3:
 					ii+=1
-#		print('ii_2: ',ii)
 		sum-= ii * (float(self.acc_list[2].bank_balance))
-#		if ii: print('ext_dep2',ii)
-#		print('sum1',sum)
 			
 		# slide update
 		ii=0
-		if self.slide_date > dep1_0 and dep1_0 > today:
+		if self.slide_date >= dep1_0 and dep1_0 >= today:
 			ii+=1
-		if self.slide_date > dep1_1:
+		if self.slide_date >= dep1_1:
 			ii+=1
-			if self.slide_date > dep1_2:
+			if self.slide_date >= dep1_2:
 				ii+=1
-				if self.slide_date > dep1_3:
+				if self.slide_date >= dep1_3:
 					ii+=1
-		sum_slide-= ii * (float(self.acc_list[1].bank_balance))
-#		if ii: print('slide_dep1',ii)			
+		sum_slide-= ii * (float(self.acc_list[1].bank_balance))	
 		
 		ii=0
-		if self.slide_date > dep2_0 and dep2_0 > today:
+		if self.slide_date >= dep2_0 and dep2_0 >= today:
 			ii+=1
-		if self.slide_date > dep2_1:
+		if self.slide_date >= dep2_1:
 			ii+=1
-			if self.slide_date > dep2_2:
+			if self.slide_date >= dep2_2:
 				ii+=1
-				if self.slide_date > dep2_3:
+				if self.slide_date >= dep2_3:
 					ii+=1
 		sum_slide-= ii * (float(self.acc_list[2].bank_balance))
 		
@@ -545,9 +549,9 @@ def next_bill_due_date( bill_date, cycle):
 	'''
 	#test for monthly,bi-monthly to use date math instead of +timedeta(days)
 
-	t_day= datetime.today().day
-	t_mo= datetime.today().month
-	t_yr= datetime.today().year
+	t_day= date.today().day
+	t_mo= date.today().month
+	t_yr= date.today().year
 	
 	b_day= bill_date.day
 	b_mo= bill_date.month
@@ -558,7 +562,6 @@ def next_bill_due_date( bill_date, cycle):
 		this_bill = bill_date
 		this_mo = t_mo
 		this_yr = t_yr
-#		print(this_bill)
 		for i in range(4):
 			if this_mo > 12:
 				this_mo -= 12
@@ -569,6 +572,7 @@ def next_bill_due_date( bill_date, cycle):
 			this_bill = this_bill.replace(month=this_mo,day=b_day+14, year=this_yr)
 			this_mo+=1
 			dates.append(this_bill)
+
 	elif (cycle==monthly):
 		this_bill = bill_date
 		this_mo = t_mo
@@ -664,7 +668,6 @@ def write_acc_list(acc_list):
 # Other button actions
 	
 def add_account_tapped(sender):
-	add=sender
 	adda=sender.superview
 	#add an account
 	ac_new=account(idx_val=len(adda.acc_list))
@@ -680,14 +683,30 @@ def add_account_tapped(sender):
 #	adda.sv.add_subview (acc_fld.paid_button)
 
 	adda.next_y_pos+=50
-	
+
+def rem_account_tapped(sender):
+	'''Remove last account added. eventually allow for any account to be deleted. maybe simple to remove from acc list, then write/read 
+	'''
+	verify = console.alert('Delete Last Account?','Restart Application after Deletions','Cancel','Continue',hide_cancel_button=True)
+	if verify == 2: #Contine chosen
+		sv=sender.superview
+		# Remove last account from list. Use i=n for different account in future 
+		sv.acc_list.pop()
+		#Only rem last account when opened: 
+		#todo: needs to remove this session's new additions as well: how?
+		sv.remove_subview(sv.acc_fld.due_button)
+		sv.remove_subview(sv.acc_fld.recur_status)
+		sv.remove_subview(sv.acc_fld.bal_field)	
+		sv.remove_subview(sv.acc_fld.acc_field)			
+		sv.next_y_pos-=50
+		
 def ext_date_tapped(sender):
 	s=sender
 	sv=sender.superview
 	#returns set{0,2}
 	idx=s.selected_index
 	
-	today_date=datetime.today()
+	today_date=date.today()
 
 	sv.ext_date=today_date + (idx+1)*timedelta(days=10)
 	sv.set_needs_display()
@@ -698,7 +717,7 @@ def slider_changed(sender):
 	s=sender
 	sv=sender.superview
 	idx=sender.value
-	today_date=datetime.today()
+	today_date=date.today()
 	
 	sv.slide_date=today_date + (idx)*timedelta(days=90)
 
