@@ -540,6 +540,7 @@ class moniest (ui.View):
 	def will_close(self):
 		''' Called when app is closed via the 'X' left-button only. 
 		'''
+		print('close')
 		write_acc_list(self.acc_list)
 		
 ##############Date Functions##############
