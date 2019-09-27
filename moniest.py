@@ -45,6 +45,13 @@
 #		todo: how to choose account to delete
 #		todo: how to remove specific subview
 #		todo: redraw screen to update
+#		todo: bill paid day option overides 
+#		due date
+#		todo:Fix keyboard not clearing with 
+#		'X' or 'done'
+#		todo: change color of ? near due date
+
+
 import ui
 from time import sleep
 from datetime import *
@@ -62,7 +69,7 @@ monthly=30
 yearly=365
 none=0
 
-########### Class Definitions ############
+########### Class Definitions ###########
 ##########################################
 class account (object):
 	'''Class for handling data for each account+
@@ -135,8 +142,12 @@ class accountField (ui.View):
 			amt_pay = balance_new			
 		else:
 			amt_pay = acc_list[self.idx].paid
+			
+		# Fields for balance dialog popup
 		field1={'type':'number','key':'balance','title':'Current Balance:  ','value':'{:0.2f}'.format(float(balance_new))}
 		field1_2={'type':'number','key':'sched_payment','title':'Scheduled Payment:  ','value':'{:0.2f}'.format(float(amt_pay))}
+		
+		field1_3={'type':'date',' key':'sched_pay_date','title':'Scheduled Payment Date'}
 		field2={'type':'switch','key':'bi_weekly','title':'Bi Weekly','value':True if float(cycle) == bi_weekly else False}
 		field3={'type':'switch','key':'bi_monthly','title':'Bi-Monthly',
 		'value':True if float(cycle) == bi_monthly else False}
@@ -144,7 +155,7 @@ class accountField (ui.View):
 		field5={'type':'switch','key':'yearly','title':'Yearly','value':True if float(cycle) == yearly else False}
 		field6={'type':'switch','key':'none','title':'None','value':True if float(cycle) == none else False}	
 			
-		t1=[field1,field1_2]
+		t1=[field1,field1_2,field1_3]
 		t2=[field2,field3,field4,field5,field6]
 		s1='Withdrawl Amount',t1
 		s2='Bill Cycle',t2
@@ -185,7 +196,7 @@ class accountField (ui.View):
 		global done_pushed
 		done_pushed=True
 		if(textfield.placeholder=='Balance'):
-			textfield.text_color='black'
+#			textfield.text_color='black'
 			textfield.superview.superview.acc_list[self.idx].balance=float(textfield.text)
 			
 			# limit to, or add, 2 decimal places as needed
@@ -214,9 +225,11 @@ class accountField (ui.View):
 			cancel_pushed=False
 			#temp data needs to be redrawn
 			textfield.text=old_text
+			textfield.end_editing()
 		#'Done' was pushed
 		else:
 			done_pushed = False
+			textfield.end_editing()
 
 	def __init__(self, frame_loc=(0,100),acc=account()):
 		
@@ -329,7 +342,7 @@ class moniest (ui.View):
 	def done_button(self,sender):
 		global done_pushed
 		done_pushed=True
-		
+		textfield.end_editing()
 	def cancel_button(self,sender):
 		global cancel_pushed
 		cancel_pushed=True
@@ -440,7 +453,8 @@ class moniest (ui.View):
 					due_day_6 = due_day_future[5]
 					due_day_7 = due_day_future[6]		
 					due_day_8 = due_day_future[7]			
-					
+			else:
+				continue					
 			# Extend update covers 30 days
 			ii=0
 			if self.ext_date >= due_day_1 and due_day_1 >= today:
@@ -540,7 +554,6 @@ class moniest (ui.View):
 	def will_close(self):
 		''' Called when app is closed via the 'X' left-button only. 
 		'''
-		print('close')
 		write_acc_list(self.acc_list)
 		
 ##############Date Functions##############
