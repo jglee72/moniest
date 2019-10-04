@@ -1,20 +1,30 @@
 # coding: utf-8
-# 
-#DONE: due date intervals other than 
+#!python3.7 
+# DONE: due date intervals other than 
 # monthly
-#DONE: 'delete' account or 'cancel out'
-
-# TIG version. Edit in pythonista from external files-->open, choose from TIG. Use apple 'file' to enable/see TIG files first. 
+# DONE: 'delete' account or 'cancel out'
+#
+# TIG version. Edit in pythonista from 
+# external files-->open, choose from TIG. 
+# Use apple 'file' to enable/see TIG files 
+# first. 
 #
 # 2018-10-05 
-# Paid button: when a bill is known to be paid: automatically txfr money out of bank balance, change due date to next interval (if a recurring bill)?  Does this effect slide ext balances with regards to todays date?
-# Added cancel and done logic to bill balance and bill name
+# Paid button: when a bill is known to be 
+# paid: automatically txfr money out of 
+# bank balance, change due date to next # 
+# interval (if a recurring bill)?  Does 
+# this effect slide ext balances with 
+# regards to todays date?
+# Added cancel and done logic to bill 
+# balance and bill name
 #
 # 2018-10-07
 # Implement recurring deposits
 #  	option a) increase bank balace menu to 
 #							include future deposits
-#		option b)	extrapolate deposits out 3 mo
+#		option b)	extrapolate deposit out 3 mo
+#
 # 2018-10-09
 # Further implement recurring bills; 
 # 	option a) extended bal menu. needs new
@@ -50,8 +60,13 @@
 #		todo:Fix keyboard not clearing with 
 #		'X' or 'done'
 #		todo: change color of ? near due date
-
-
+# 2019-10-03
+#		added 2 deposit dates, made 
+#		independent. Added weekly billing cat
+#		Major change to future date's function
+#		Addeds DEBUG constant for all prints
+#
+#########################################
 import ui
 from time import sleep
 from datetime import *
@@ -63,11 +78,13 @@ import operator
 #__________#
 done_pushed=False
 cancel_pushed=False
+weekly=7
 bi_weekly=15
 bi_monthly=60
 monthly=30
 yearly=365
 none=0
+DEBUG =False
 
 ########### Class Definitions ###########
 ##########################################
@@ -75,7 +92,7 @@ class account (object):
 	'''Class for handling data for each account+
 	Currently all data is handled directly -i.e. there is no class modules to handle data security at the moment. 
 	'''
-	def __init__(self,idx_val=None,name_val='',bal_val='0.0',due_day_val= datetime.strftime(date.today(),'%Y,%m,%d'), repeat_val=True,dep_val=0.0, dep_date_val= date.today(), paid_val=0.00,cycle_val=monthly):
+	def __init__(self,idx_val=None,name_val='',bal_val='0.0',due_day_val= date.strftime(date.today(),'%Y,%m,%d'), repeat_val=True,dep_val=0.0, dep_date_val= date.strftime(date.today(),'%Y,%m,%d'), paid_val=0.00, paid_date_val=date.strftime(date.today(),'%Y-%m-%d'), cycle_val=monthly):
 		self.idx=idx_val
 		self.name=name_val
 		self.balance=bal_val
@@ -84,6 +101,7 @@ class account (object):
 		self.bank_balance=dep_val
 		self.bank_date = dep_date_val
 		self.paid = paid_val
+		self.paid_date = paid_date_val
 		self.cycle = cycle_val
 
 #############===============#############
@@ -118,7 +136,7 @@ class accountField (ui.View):
 			cancel_pushed=False
 			return 
 		#'Done' was pushed: update gui
-		due_pick_str=datetime.strftime(due_date_picker.date,'%Y,%m,%d')
+		due_pick_str=date.strftime(due_date_picker.date,'%Y,%m,%d')
 		v.title=(due_pick_str)
 	
 		#save to acc_list
@@ -147,7 +165,8 @@ class accountField (ui.View):
 		field1={'type':'number','key':'balance','title':'Current Balance:  ','value':'{:0.2f}'.format(float(balance_new))}
 		field1_2={'type':'number','key':'sched_payment','title':'Scheduled Payment:  ','value':'{:0.2f}'.format(float(amt_pay))}
 		
-		field1_3={'type':'date',' key':'sched_pay_date','title':'Scheduled Payment Date'}
+		field1_3={'type':'date',' key':'sched_pay_date','title':'Scheduled Payment Date','value':datetime.strptime(acc_list[self.idx].paid_date,'%Y-%m-%d')}
+		field1_4={'type':'switch','key':'weekly','title':'Weekly','value':True if float(cycle) == weekly else False}
 		field2={'type':'switch','key':'bi_weekly','title':'Bi Weekly','value':True if float(cycle) == bi_weekly else False}
 		field3={'type':'switch','key':'bi_monthly','title':'Bi-Monthly',
 		'value':True if float(cycle) == bi_monthly else False}
@@ -156,22 +175,28 @@ class accountField (ui.View):
 		field6={'type':'switch','key':'none','title':'None','value':True if float(cycle) == none else False}	
 			
 		t1=[field1,field1_2,field1_3]
-		t2=[field2,field3,field4,field5,field6]
+		t2=[field1_4,field2,field3,field4,field5,field6]
 		s1='Withdrawl Amount',t1
 		s2='Bill Cycle',t2
 		sect=(s1,s2)
-		
+		# Balance dialog popup
 		answer=dialogs.form_dialog(title= (name + ' Menu'), sections=sect,done_button_title='Finished')
+
 		if(not answer == None):
 			d_balance=answer['balance']
-			d_weekly=answer['bi_weekly']
+			d_weekly=answer['weekly']
+			d_bi_weekly=answer['bi_weekly']
 			d_bi_monthly=answer['bi_monthly']
 			d_monthly=answer['monthly']
 			d_yearly=answer['yearly']
 			d_none = answer['none']
 			d_paid = answer['sched_payment']
+			d_paid_date = answer['Scheduled Payment Date']
 			
 			if (d_weekly):
+				acc_list[self.idx].cycle=weekly
+				recur_str='weekly'
+			if (d_bi_weekly):
 				acc_list[self.idx].cycle=bi_weekly
 				recur_str='bi-week'
 			if  (d_monthly):
@@ -191,6 +216,7 @@ class accountField (ui.View):
 			self.bal_field.text=d_balance
 			self.recur_status.text = recur_str
 			acc_list[self.idx].paid=d_paid
+			acc_list[self.idx].paid_date=date.strftime(d_paid_date,'%Y-%m-%d')
 		
 	def textfield_did_end_editing(self, textfield):
 		global done_pushed
@@ -258,6 +284,8 @@ class accountField (ui.View):
 		
 		# fill initial recur status in field
 		recur_str = 'default'
+		if (float(acc.cycle) == weekly):
+			recur_str='weekly'		
 		if (float(acc.cycle) == bi_weekly):
 			recur_str='bi-week'
 		if  (float(acc.cycle) == monthly):
@@ -291,16 +319,25 @@ class moniest (ui.View):
 			'value': (datetime.strptime(self.acc_list[1].bank_date,'%Y,%m,%d'))}
 			field4={'type':'number','key':'deposit2','title':'Deposit Amount:  ','value':'{:.2f}'.format(float(self.acc_list[2].bank_balance))}
 			field5={'type':'date','key':'dep2_date','title':'Deposit Date:  ' ,'tint_color':'#000000',
-			'value': (datetime.strptime(self.acc_list[2].bank_date,'%Y,%m,%d'))}
+			'value': (datetime.strptime(self.acc_list[2].bank_date,'%Y,%m,%d'))}			
+			field6={'type':'number','key':'deposit3','title':'Deposit Amount:  ','value':'{:.2f}'.format(float(self.acc_list[3].bank_balance))}
+			field7={'type':'date','key':'dep3_date','title':'Deposit Date:  ' ,'tint_color':'#000000',
+			'value': (datetime.strptime(self.acc_list[3].bank_date,'%Y,%m,%d'))}
+			field8={'type':'number','key':'deposit4','title':'Deposit Amount:  ','value':'{:.2f}'.format(float(self.acc_list[4].bank_balance))}
+			field9={'type':'date','key':'dep4_date','title':'Deposit Date:  ' ,'tint_color':'#000000',
+			'value': (datetime.strptime(self.acc_list[4].bank_date,'%Y,%m,%d'))}
 			
 			t1=[field1]
 			t2=[field2,field3]
 			t3=[field4,field5]
+			t4=[field6,field7]
+			t5=[field8,field9]		
 			s1='Current Balance',t1
 			s2='Recurring Deposit 1',t2
 			s3='Recurring Deposit 2',t3
-		
-			sect=(s1,s2,s3)
+			s4='Recurring Deposit 3',t4			
+			s5='Recurring Deposit 4',t5
+			sect=(s1,s2,s3,s4,s5)
 			answer=dialogs.form_dialog(title='Bank Balance Settings',sections=sect,done_button_title='Finished')
 			if (not(answer==None)):
 				d_bal = answer['balance']
@@ -308,15 +345,22 @@ class moniest (ui.View):
 				d_dep1_date = answer['dep1_date']
 				d_dep2 = answer['deposit2']
 				d_dep2_date = answer['dep2_date']
-
+				d_dep3 = answer['deposit3']
+				d_dep3_date = answer['dep3_date']
+				d_dep4 = answer['deposit4']
+				d_dep4_date = answer['dep4_date']				
 				# fill account list bank balaces
 				# dates require conversion to string 
 				# prior to csv write
 				self.acc_list[0].bank_balance= d_bal
 				self.acc_list[1].bank_balance= d_dep1
-				self.acc_list[1].bank_date= datetime.strftime(d_dep1_date,'%Y,%m,%d')
+				self.acc_list[1].bank_date= date.strftime(d_dep1_date,'%Y,%m,%d')
 				self.acc_list[2].bank_balance=d_dep2
-				self.acc_list[2].bank_date= datetime.strftime(d_dep2_date,'%Y,%m,%d')
+				self.acc_list[2].bank_date= date.strftime(d_dep2_date,'%Y,%m,%d')
+				self.acc_list[3].bank_balance=d_dep3
+				self.acc_list[3].bank_date= date.strftime(d_dep3_date,'%Y,%m,%d')
+				self.acc_list[4].bank_balance=d_dep4
+				self.acc_list[4].bank_date= date.strftime(d_dep4_date,'%Y,%m,%d')
 			# update balance on gui
 			self.set_needs_display()
 
@@ -342,7 +386,7 @@ class moniest (ui.View):
 	def done_button(self,sender):
 		global done_pushed
 		done_pushed=True
-		textfield.end_editing()
+
 	def cancel_button(self,sender):
 		global cancel_pushed
 		cancel_pushed=True
@@ -428,122 +472,80 @@ class moniest (ui.View):
 
 		# date conversions for deposit date math
 		dep1_date = datetime.strptime(self.acc_list[1].bank_date,'%Y,%m,%d')
+		dep1_date = datetime.date(dep1_date)
 		dep2_date = datetime.strptime(self.acc_list[2].bank_date,'%Y,%m,%d')
+		dep2_date = datetime.date(dep2_date)
+		dep3_date = datetime.strptime(self.acc_list[3].bank_date,'%Y,%m,%d')
+		dep3_date = datetime.date(dep3_date)
+		dep4_date = datetime.strptime(self.acc_list[4].bank_date,'%Y,%m,%d')		
+		dep4_date = datetime.date(dep4_date)
 		
 		today = date.today()
 		
 		for i in (self.acc_list):
-			#string conversion to datetime.date 
-			# Inial due day for future due dates 
-			due_day_0= datetime.strptime(i.due_day,'%Y,%m,%d').date()
 			
+			# string conversion to datetime.date 
+			# Inital due day for future due dates 
+			due_day_0= datetime.strptime(i.due_day,'%Y,%m,%d').date()
+			if DEBUG:
+				print('\nipaid:',i.paid)
 			# get cycle info from account
 			cycle = int(i.cycle)
-
-			if (cycle):
-				due_day_future = next_bill_due_date(due_day_0,cycle)
-
-				# Need advance dates for accounts based on cycle settings
-				due_day_1 = due_day_future[0]
-				due_day_2 = due_day_future[1]
-				due_day_3 = due_day_future[2]
-				due_day_4 = due_day_future[3]
-				if cycle == bi_weekly:
-					due_day_5 = due_day_future[4]			
-					due_day_6 = due_day_future[5]
-					due_day_7 = due_day_future[6]		
-					due_day_8 = due_day_future[7]			
-			else:
-				continue					
-			# Extend update covers 30 days
-			ii=0
-			if self.ext_date >= due_day_1 and due_day_1 >= today:
-				ii+=1
-			if self.ext_date >= due_day_2 and due_day_2 >= today:
-				ii+=1
-
-			if self.ext_date >= due_day_3:
-				ii+=1
-				if self.ext_date >= due_day_4:
-					ii+=1
-			sum+= ii * (float(i.paid))
-			
-			ii=0
-			if self.slide_date >= due_day_1 and due_day_1 >= today:
-				ii+=1
-			if self.slide_date >= due_day_2 and due_day_2 >= today:
-				ii+=1
-			if self.slide_date >= due_day_3:
-				ii+=1
-				if self.slide_date >= due_day_4:
-					ii+=1
-					if (cycle == bi_weekly):
-						if self.slide_date >= due_day_5:
-							ii+=1
-							if self.slide_date >= due_day_6:
-								ii+=1
-							if self.slide_date >= due_day_7:
-								ii+= 1
-			sum_slide+= ii * (float(i.paid))
+			if DEBUG:
+				print('Withdrawls....')
+			due_day_future = next_bill_due_date(due_day_0,cycle)
+			if DEBUG:
+				print('1st billdate:',due_day_0,cycle)
+				print('future bill dates:',end='')
+			for bill_date in due_day_future:
+				if DEBUG:
+					print(bill_date,end=',')
+				if self.ext_date >= bill_date:
+					sum+=float(i.paid)
+				if self.slide_date >= bill_date:
+					sum_slide+=float(i.paid)
+			if DEBUG:
+				print('\nsum,slide:',sum,sum_slide)
+				print('ext,slide_date',self.ext_date,self.slide_date)
 				
+		#end for loop
+		
 		###########now add deposits###########
 		# deduce first valid deposit day using datetime.day math and extrapolation
+		if DEBUG:
+			print('deposits...')
 		deposit_1_dates = next_bill_due_date(dep1_date, monthly)
 		deposit_2_dates = next_bill_due_date(dep2_date, monthly)
-
-		dep1_0= deposit_1_dates[0].date()
-		dep1_1= deposit_1_dates[1].date()
-		dep1_2= deposit_1_dates[2].date()
-		dep1_3= deposit_1_dates[3].date()
-		dep2_0= deposit_2_dates[0].date()
-		dep2_1= deposit_2_dates[1].date()
-		dep2_2= deposit_2_dates[2].date()
-		dep2_3= deposit_2_dates[3].date()
-		
-		# Extend update
-		ii=0
-		if self.ext_date >= dep1_0 and dep1_0 >= today:
-			ii+=1
-		if self.ext_date >= dep1_1:
-			ii+=1
-			if self.ext_date >= dep1_2:
-				ii+=1
-				if self.ext_date >= dep1_3:
-					ii+=1
-		sum-= ii * (float(self.acc_list[1].bank_balance))
-		ii=0
-		if self.ext_date >= dep2_0 and dep2_0 >= today:
-			ii+=1
-		if self.ext_date >= dep2_1:
-			ii+=1
-			if self.ext_date >= dep2_2:
-				ii+=1
-				if self.ext_date >= dep2_3:
-					ii+=1
-		sum-= ii * (float(self.acc_list[2].bank_balance))
-			
-		# slide update
-		ii=0
-		if self.slide_date >= dep1_0 and dep1_0 >= today:
-			ii+=1
-		if self.slide_date >= dep1_1:
-			ii+=1
-			if self.slide_date >= dep1_2:
-				ii+=1
-				if self.slide_date >= dep1_3:
-					ii+=1
-		sum_slide-= ii * (float(self.acc_list[1].bank_balance))	
-		
-		ii=0
-		if self.slide_date >= dep2_0 and dep2_0 >= today:
-			ii+=1
-		if self.slide_date >= dep2_1:
-			ii+=1
-			if self.slide_date >= dep2_2:
-				ii+=1
-				if self.slide_date >= dep2_3:
-					ii+=1
-		sum_slide-= ii * (float(self.acc_list[2].bank_balance))
+		deposit_3_dates = next_bill_due_date(dep3_date, monthly)
+		deposit_4_dates = next_bill_due_date(dep4_date, monthly)
+		if DEBUG:
+				print(deposit_1_dates)
+				print(deposit_2_dates)
+				print(deposit_3_dates)				
+				print(deposit_4_dates)											
+		for dep_date in deposit_1_dates:
+			if self.ext_date >= dep_date:
+				sum-= (float(self.acc_list[1].bank_balance))
+			if self.slide_date >= dep_date:
+				sum_slide-= (float(self.acc_list[1].bank_balance))
+				
+		for dep_date in deposit_2_dates:
+			if self.ext_date >= dep_date:
+				sum-= (float(self.acc_list[2].bank_balance))
+			if self.slide_date >= dep_date:
+				sum_slide-= (float(self.acc_list[2].bank_balance))
+				
+		for dep_date in deposit_3_dates:
+			if self.ext_date >= dep_date:
+				sum-= (float(self.acc_list[3].bank_balance))
+			if self.slide_date >= dep_date:
+				sum_slide-= (float(self.acc_list[3].bank_balance))
+				
+		for dep_date in deposit_4_dates:
+			if self.ext_date >= dep_date:
+				sum-= (float(self.acc_list[4].bank_balance))
+			if self.slide_date >= dep_date:
+				sum_slide-= (float(self.acc_list[4].bank_balance))
 		
 		# update balance GUIs
 		self.b_ext_balance.text= '{:.2f}'.format(float(self.b_real_balance.text)-sum)
@@ -571,33 +573,77 @@ def next_bill_due_date( bill_date, cycle):
 	b_mo= bill_date.month
 	b_yr= bill_date.year
 	dates=[]
+	if (cycle==weekly):
+		# weekly needs check for Feb 28 
+		# this month bill date:
+		this_bill = bill_date
+		this_mo = t_mo
+		this_yr = t_yr
+		b_day_temp=b_day
+		for i in range(15):
+			if b_day_temp>30:
+				b_day_temp-=30
+				this_mo+=1
+			if this_mo > 12:
+				this_mo -= 12
+				this_yr += 1
+			# Feb 28 check 
+			if(this_mo==2 and b_day_temp>28):
+				b_day_temp=28
+			#use time.replace(month=x+i)
+			this_bill = this_bill.replace(month=this_mo,day=b_day_temp,year=this_yr)
+			if DEBUG:
+				print(this_mo,b_day_temp,this_yr)
+			if this_bill > date.today():
+				dates.append(this_bill)			
+			b_day_temp+=7
+			
 	if (cycle==bi_weekly):
 		# this month bill date:
 		this_bill = bill_date
 		this_mo = t_mo
 		this_yr = t_yr
-		for i in range(4):
+		b_day_corrected=b_day+14
+		for i in range(6):
+			#use time.replace(month=x+i)
+			this_bill = this_bill.replace(month=this_mo,day=b_day,year=this_yr)
+			if this_bill > date.today():				
+				dates.append(this_bill)
+			# Feb 28 check 
+			if(this_mo==2 and b_day_corrected>28):
+				b_day_corrected=28
+			this_bill = this_bill.replace(month=this_mo,day=b_day_corrected, year=this_yr)
+			if DEBUG:
+				print (this_mo,b_day_corrected,this_yr)		
+			if this_bill > date.today():				
+				dates.append(this_bill)
+			this_mo+=1
 			if this_mo > 12:
 				this_mo -= 12
 				this_yr += 1
-			#use time.replace(month=x+i)
-			this_bill = this_bill.replace(month=this_mo,day=b_day,year=this_yr)
-			dates.append(this_bill)
-			this_bill = this_bill.replace(month=this_mo,day=b_day+14, year=this_yr)
-			this_mo+=1
-			dates.append(this_bill)
-
+			# always reset for Feb 28 
+			b_day_corrected=b_day+14
 	elif (cycle==monthly):
+		# monthly needs check for Feb 28 
 		this_bill = bill_date
 		this_mo = t_mo
 		this_yr = t_yr
-		for i in range(4):
+		this_day = b_day
+		for i in range(6):
 			if this_mo > 12:
 				this_mo -= 12
 				this_yr += 1
-			this_bill= this_bill.replace(month=this_mo,year=this_yr)
-			dates.append(this_bill)
-			this_mo+=1
+			# Feb 28 check 
+			if(this_mo==2 and this_day>28):
+				this_day=28
+			this_bill= this_bill.replace(month=this_mo,day=this_day,year=this_yr)
+			if DEBUG:
+				print(this_mo,this_day,this_yr)
+			if this_bill >=date.today():
+				dates.append(this_bill)
+			# always reset for Feb 28 
+			this_day=b_day
+			this_mo+=1						
 
 	elif (cycle==bi_monthly):#needs to know which month to start. maybe even odd?
 	#if true month is odd
@@ -611,22 +657,33 @@ def next_bill_due_date( bill_date, cycle):
 			this_mo = t_mo+1
 		else:
 			this_mo = t_mo
-			
+		this_day=b_day
 		this_bill = bill_date
 		this_yr = t_yr
-		for i in range(4):
+		for i in range(6):
 			if this_mo > 12:
 				this_mo -= 12
 				this_yr += 1
-			this_bill=this_bill.replace(month=this_mo,year=this_yr)
-			dates.append(this_bill)
-			this_mo+=2
-			
+			# Feb 28 check 
+			if(this_mo==2 and this_day>28):
+				this_day=28
+			this_bill=this_bill.replace (month=this_mo,day=this_day,year=this_yr)
+			if DEBUG:
+				print(this_mo,b_day,this_yr)			
+			# always rest for Feb
+			this_day=b_day
+			if this_bill >= date.today():
+				dates.append(this_bill)
+			this_mo+=2			
+
 	elif (cycle == yearly):
 		this_bill = bill_date
 		for i in range(4):
 			this_bill = this_bill.replace(year=t_yr+i)
-			dates.append(this_bill)
+			if this_bill > date.today() :
+				dates.append(this_bill)
+			if DEBUG:
+				print(this_bill)
 	return dates
 		
 ########### CSV DB Functions ############
@@ -639,7 +696,7 @@ def next_bill_due_date( bill_date, cycle):
 # 5. verify csv has new column and all old and new data
 # 6. finally, add new column to read()
 # todo: self detect new column?
-fields= ['idx','name','balance','due_day','repeat','bank_bal','bank_date','paid','cycle']
+fields= ['idx','name','balance','due_day','repeat','bank_bal','bank_date','paid','paid_date','cycle']
 
 def read_acc_list():
 	# initial check to see if csv is empty
@@ -659,9 +716,9 @@ def read_acc_list():
 	with open('moniest.csv') as csvfile:
 		reader = csv.DictReader(csvfile)
 		for idx,row in enumerate(reader):
-			ac= account(idx_val=idx, name_val=row['name'], bal_val=row['balance'], due_day_val=row['due_day'], repeat_val=row['repeat'],
+			ac= account( idx_val=idx, name_val=row['name'], bal_val=row['balance'], due_day_val=row['due_day'], repeat_val=row['repeat'],
 			dep_val=row['bank_bal'],
-			dep_date_val=row['bank_date'], paid_val=row['paid'], cycle_val=row['cycle'] )
+			dep_date_val=row['bank_date'], paid_val=row['paid'], paid_date_val=row['paid_date'], cycle_val=row['cycle'] )
 			acc_list.append(ac)
 	return acc_list
 
@@ -671,7 +728,7 @@ def write_acc_list(acc_list):
 		writer.writeheader()
 		for i in range(len(acc_list)):
 			writer.writerow ({ 'idx':i , 'name':acc_list[i].name , 'balance':acc_list[i].balance, 'due_day': acc_list[i].due_day, 'repeat':acc_list[i].repeat, 'bank_bal':acc_list[i].bank_balance,
-			'bank_date':acc_list[i].bank_date, 'paid':acc_list[i].paid, 'cycle':acc_list[i].cycle })
+			'bank_date':acc_list[i].bank_date, 'paid':acc_list[i].paid, 'paid_date':acc_list[i].paid_date, 'cycle':acc_list[i].cycle })
 			
 ########### Button Actions ##############
 ##########################################
