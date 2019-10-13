@@ -65,7 +65,12 @@
 #		independent. Added weekly billing cat
 #		Major change to future date's function
 #		Addeds DEBUG constant for all prints
-#
+# 2019-10-05 
+#		fix 'one time' bills not included
+#		remove redundant DEBUG info 
+# 2019-10-12
+#		Hardcode 'Dep_3' to every two weeks 
+#		Add 2 wk category to date method
 #########################################
 import ui
 from time import sleep
@@ -79,12 +84,13 @@ import operator
 done_pushed=False
 cancel_pushed=False
 weekly=7
+two_weeks = 14
 bi_weekly=15
 bi_monthly=60
 monthly=30
 yearly=365
 none=0
-DEBUG =False
+DEBUG = False
 
 ########### Class Definitions ###########
 ##########################################
@@ -167,6 +173,7 @@ class accountField (ui.View):
 		
 		field1_3={'type':'date',' key':'sched_pay_date','title':'Scheduled Payment Date','value':datetime.strptime(acc_list[self.idx].paid_date,'%Y-%m-%d')}
 		field1_4={'type':'switch','key':'weekly','title':'Weekly','value':True if float(cycle) == weekly else False}
+		field1_5={'type':'switch','key':'2weekly','title':'Every 2 Weeks','value':True if float(cycle) == two_weeks else False}		
 		field2={'type':'switch','key':'bi_weekly','title':'Bi Weekly','value':True if float(cycle) == bi_weekly else False}
 		field3={'type':'switch','key':'bi_monthly','title':'Bi-Monthly',
 		'value':True if float(cycle) == bi_monthly else False}
@@ -175,7 +182,7 @@ class accountField (ui.View):
 		field6={'type':'switch','key':'none','title':'None','value':True if float(cycle) == none else False}	
 			
 		t1=[field1,field1_2,field1_3]
-		t2=[field1_4,field2,field3,field4,field5,field6]
+		t2=[field1_4,field1_5,field2,field3,field4,field5,field6]
 		s1='Withdrawl Amount',t1
 		s2='Bill Cycle',t2
 		sect=(s1,s2)
@@ -185,6 +192,7 @@ class accountField (ui.View):
 		if(not answer == None):
 			d_balance=answer['balance']
 			d_weekly=answer['weekly']
+			d_2weekly=answer['2weekly']
 			d_bi_weekly=answer['bi_weekly']
 			d_bi_monthly=answer['bi_monthly']
 			d_monthly=answer['monthly']
@@ -196,6 +204,9 @@ class accountField (ui.View):
 			if (d_weekly):
 				acc_list[self.idx].cycle=weekly
 				recur_str='weekly'
+			if (d_2weekly):
+				acc_list[self.idx].cycle=two_weeks
+				recur_str='2-weeks'			
 			if (d_bi_weekly):
 				acc_list[self.idx].cycle=bi_weekly
 				recur_str='bi-week'
@@ -286,17 +297,20 @@ class accountField (ui.View):
 		recur_str = 'default'
 		if (float(acc.cycle) == weekly):
 			recur_str='weekly'		
-		if (float(acc.cycle) == bi_weekly):
+		elif (float(acc.cycle) == two_weeks):
+			recur_str='2 weeks'				
+		elif (float(acc.cycle) == bi_weekly):
 			recur_str='bi-week'
-		if  (float(acc.cycle) == monthly):
+		elif (float(acc.cycle) == monthly):
 			recur_str='monthly'
-		if  (float(acc.cycle) == bi_monthly):
+		elif (float(acc.cycle) == bi_monthly):
 			recur_str='bi-month'
-		if  (float(acc.cycle) == yearly):
+		elif (float(acc.cycle) == yearly):
 			recur_str='yearly'
-		if  (float(acc.cycle) == none):
+		elif (float(acc.cycle) == none):
 			recur_str='one-time'
-		
+		else:
+			recur_str='none'		
 		#bill frequency field
 		self.recur_status= ui.TextView(frame= (self.frame_location[0],(self.frame_location[1]+30),90,30),font=('AmericanTypewriter',16),border_width=0, border_radius=15, text= recur_str, bg_color='#c1c1c1',editable=False)
 		
@@ -333,10 +347,10 @@ class moniest (ui.View):
 			t4=[field6,field7]
 			t5=[field8,field9]		
 			s1='Current Balance',t1
-			s2='Recurring Deposit 1',t2
-			s3='Recurring Deposit 2',t3
-			s4='Recurring Deposit 3',t4			
-			s5='Recurring Deposit 4',t5
+			s2='Recurring Deposit 1: (Monthly)',t2
+			s3='Recurring Deposit 2: (monthly)',t3
+			s4='Recurring Deposit 3: (every 2 weeks)',t4			
+			s5='Recurring Deposit 4: (monthly)',t5
 			sect=(s1,s2,s3,s4,s5)
 			answer=dialogs.form_dialog(title='Bank Balance Settings',sections=sect,done_button_title='Finished')
 			if (not(answer==None)):
@@ -516,12 +530,12 @@ class moniest (ui.View):
 			print('deposits...')
 		deposit_1_dates = next_bill_due_date(dep1_date, monthly)
 		deposit_2_dates = next_bill_due_date(dep2_date, monthly)
-		deposit_3_dates = next_bill_due_date(dep3_date, monthly)
+		deposit_3_dates = next_bill_due_date(dep3_date, two_weeks)
 		deposit_4_dates = next_bill_due_date(dep4_date, monthly)
 		if DEBUG:
 				print(deposit_1_dates)
 				print(deposit_2_dates)
-				print(deposit_3_dates)				
+				print('dep3:',deposit_3_dates)				
 				print(deposit_4_dates)											
 		for dep_date in deposit_1_dates:
 			if self.ext_date >= dep_date:
@@ -592,13 +606,20 @@ def next_bill_due_date( bill_date, cycle):
 				b_day_temp=28
 			#use time.replace(month=x+i)
 			this_bill = this_bill.replace(month=this_mo,day=b_day_temp,year=this_yr)
-			if DEBUG:
-				print(this_mo,b_day_temp,this_yr)
 			if this_bill > date.today():
 				dates.append(this_bill)			
 			b_day_temp+=7
 			
-	if (cycle==bi_weekly):
+	elif cycle==two_weeks:
+		this_bill=bill_date
+		# Extrapolate date beyond today		
+		while this_bill < date.today():
+			this_bill+=timedelta(14)
+		for i in range(6):
+			dates.append(this_bill)
+			this_bill+= timedelta(days=14)
+				
+	elif (cycle==bi_weekly):
 		# this month bill date:
 		this_bill = bill_date
 		this_mo = t_mo
@@ -613,8 +634,6 @@ def next_bill_due_date( bill_date, cycle):
 			if(this_mo==2 and b_day_corrected>28):
 				b_day_corrected=28
 			this_bill = this_bill.replace(month=this_mo,day=b_day_corrected, year=this_yr)
-			if DEBUG:
-				print (this_mo,b_day_corrected,this_yr)		
 			if this_bill > date.today():				
 				dates.append(this_bill)
 			this_mo+=1
@@ -637,8 +656,6 @@ def next_bill_due_date( bill_date, cycle):
 			if(this_mo==2 and this_day>28):
 				this_day=28
 			this_bill= this_bill.replace(month=this_mo,day=this_day,year=this_yr)
-			if DEBUG:
-				print(this_mo,this_day,this_yr)
 			if this_bill >=date.today():
 				dates.append(this_bill)
 			# always reset for Feb 28 
@@ -668,8 +685,6 @@ def next_bill_due_date( bill_date, cycle):
 			if(this_mo==2 and this_day>28):
 				this_day=28
 			this_bill=this_bill.replace (month=this_mo,day=this_day,year=this_yr)
-			if DEBUG:
-				print(this_mo,b_day,this_yr)			
 			# always rest for Feb
 			this_day=b_day
 			if this_bill >= date.today():
@@ -682,8 +697,7 @@ def next_bill_due_date( bill_date, cycle):
 			this_bill = this_bill.replace(year=t_yr+i)
 			if this_bill > date.today() :
 				dates.append(this_bill)
-			if DEBUG:
-				print(this_bill)
+	else: dates.append(bill_date)
 	return dates
 		
 ########### CSV DB Functions ############
