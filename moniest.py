@@ -71,6 +71,13 @@
 # 2019-10-12
 #		Hardcode 'Dep_3' to every two weeks 
 #		Add 2 wk category to date method
+# 2019-10-16
+#		streamlined weekly bill due dates
+#		Added bank balance date
+#		Change next due date math to return 
+#		dates beyond bank balance date. was 
+#		today date. 
+#		Added dates to all balances in GUI
 #########################################
 import ui
 from time import sleep
@@ -117,7 +124,7 @@ class accountField (ui.View):
 	'''	
 	global done_pushed
 	global cancel_pushed
-	# datepicker needs background running or 
+	# datepicker needs background running 
 	@ui.in_background
 	def bt_due_day(self,sender):
 		global done_pushed
@@ -142,7 +149,7 @@ class accountField (ui.View):
 			cancel_pushed=False
 			return 
 		#'Done' was pushed: update gui
-		due_pick_str=date.strftime(due_date_picker.date,'%Y,%m,%d')
+		due_pick_str= date.strftime(due_date_picker.date,'%Y,%m,%d')
 		v.title=(due_pick_str)
 	
 		#save to acc_list
@@ -328,6 +335,8 @@ class moniest (ui.View):
 	def textview_did_begin_editing(self,textfield):
 		if(textfield.placeholder=='Bank Bal'):
 			field1={'type':'number','key':'balance','title':'Current Balance:  ','tint_color':'#346511','value':'{:.2f}'.format(float(textfield.text))}
+			field1_1={'type':'date','key':'bal_date','title':'Deposit Date:  ','tint_color':'#000000',
+			'value': (datetime.strptime(self.acc_list[0].bank_date,'%Y-%m-%d'))}
 			field2={'type':'number','key':'deposit1','title':'Deposit Amount:  ','value':'{:.2f}'.format( float(self.acc_list[1].bank_balance))}
 			field3={'type':'date','key':'dep1_date','title':'Deposit Date:  ','tint_color':'#000000',
 			'value': (datetime.strptime(self.acc_list[1].bank_date,'%Y,%m,%d'))}
@@ -341,7 +350,7 @@ class moniest (ui.View):
 			field9={'type':'date','key':'dep4_date','title':'Deposit Date:  ' ,'tint_color':'#000000',
 			'value': (datetime.strptime(self.acc_list[4].bank_date,'%Y,%m,%d'))}
 			
-			t1=[field1]
+			t1=[field1,field1_1]
 			t2=[field2,field3]
 			t3=[field4,field5]
 			t4=[field6,field7]
@@ -355,6 +364,7 @@ class moniest (ui.View):
 			answer=dialogs.form_dialog(title='Bank Balance Settings',sections=sect,done_button_title='Finished')
 			if (not(answer==None)):
 				d_bal = answer['balance']
+				d_bal_date = answer['bal_date']
 				d_dep1 = answer['deposit1']
 				d_dep1_date = answer['dep1_date']
 				d_dep2 = answer['deposit2']
@@ -367,6 +377,7 @@ class moniest (ui.View):
 				# dates require conversion to string 
 				# prior to csv write
 				self.acc_list[0].bank_balance= d_bal
+				self.acc_list[0].bank_date= date.strftime(d_bal_date,'%Y-%m-%d')
 				self.acc_list[1].bank_balance= d_dep1
 				self.acc_list[1].bank_date= date.strftime(d_dep1_date,'%Y,%m,%d')
 				self.acc_list[2].bank_balance=d_dep2
@@ -424,7 +435,7 @@ class moniest (ui.View):
 		
 		#Scrollview for all accounts: increases
 		#total on iphone; keyboard non-blocking
-		self.sv = ui.ScrollView(frame = (0,0,w,h-280),bg_color='#e2e2e2',shows_vertical_scroll_indicator=False,scroll_enabled=True,indicator_style='#ade4ed',flex='')
+		self.sv = ui.ScrollView(frame = (0,0,w,h-320),bg_color='#e2e2e2',shows_vertical_scroll_indicator=False,scroll_enabled=True,indicator_style='#ade4ed',flex='')
 	
 		#important content size must be bigger than scrollview to allow for scrolling
 		self.sv.content_size = (w, h*2) 
@@ -437,54 +448,63 @@ class moniest (ui.View):
 		self.next_y_pos= (len(self.acc_list)*50+10)
 		
 		# button to add new account
-		self.add_account = ui.Button(title='Add Account',font=('Copperplate',17),frame=(10,h-275,0,0),action=add_account_tapped,border_width=0,border_color='#676767')
+		self.add_account = ui.Button(title='Add Account',font=('Copperplate',17),frame=(10,h-310,0,0),action=add_account_tapped,border_width=0,border_color='#676767')
 
 		self.add_subview(self.add_account)
 		
 		# button to delete last account
-		self.rem_account = ui.Button(title='Rem Account',font=('Copperplate',17),frame=(10,h-245,0,0),action=rem_account_tapped,border_width=0,border_color='#676767')
+		self.rem_account = ui.Button(title='Rem Account',font=('Copperplate',17),frame=(10,h-280,0,0),action=rem_account_tapped,border_width=0,border_color='#676767')
 
 		self.add_subview(self.rem_account)
 		
 		#Extended date picker
-		self.ext_date_seg = ui.SegmentedControl (segments=('10D','20D','30D'), frame=(170,h-255,180,35),selected_index=-1 , action=ext_date_tapped)
+		self.ext_date_seg = ui.SegmentedControl (segments=('10D','20D','30D'), frame=(170,h-300,180,35),selected_index=-1 , action=ext_date_tapped)
 		
 		self.add_subview(self.ext_date_seg)
 		
 		# slider to calculate slide date balance
-		self.date_slider= ui.Slider(frame=(10,h-205,350,10),action=slider_changed, continuous=False)
+		self.date_slider= ui.Slider(frame=(10,h-235,350,10),action=slider_changed, continuous=False)
 		self.add_subview(self.date_slider)
 		
 		# Bank balances
-		# todo: should this be a class of 'accounts'
+		# Real bank balance and date recorded
 		self.b_real_balance = ui.TextView(frame=(10,h-180,110,45), placeholder = 'Bank Bal' , text='{:.2f}'.format(float(self.acc_list[0].bank_balance)) ,  border_width=0,border_radius=5 , bordered=True, delegate=self,font=('Verdana',17))
 
 		self.add_subview(self.b_real_balance)
 		
-		self.real_label= ui.Label(frame=(10,h-140,110,45),text='Bank Bal')
+		self.real_label= ui.Label(frame=(15,h-140,110,45),text='Bank Bal')
 		self.add_subview(self.real_label)
 		
+		self.real_date_label= ui.Label(frame=(15,h-215,110,45),text='slide Bal')
+		self.add_subview(self.real_date_label)		
+		# 10/20/30 Day quick Extended bank
+		#  balance extrapolation
 		self.b_ext_balance = ui.TextView(frame=(130,h-180,110,45),text='678.65',font=('Verdana',17),editable=False,selectable=False,border_width=0)
 		self.b_ext_balance.bordered=True
 		self.add_subview(self.b_ext_balance)
 		
-		self.ext_label= ui.Label(frame=(130,h-140,110,45),text='ext Bal')
+		self.ext_label= ui.Label(frame=(135,h-140,110,45),text='Ext Bal')
 		self.add_subview(self.ext_label)
-		
+
+		self.ext_date_label= ui.Label(frame=(135,h-215,110,45),text=date.strftime(self.ext_date,'%Y-%m-%d'))
+		self.add_subview(self.ext_date_label)				
+		# Slider bank balane extrapolation
 		self.b_slide_balance = ui.TextView(frame=(250,h-180,110,45),text='-86.76',font=('Verdana',17),border_radius=20,border_color='black',border_width=0,editable=False,selectable=False)
 		self.add_subview(self.b_slide_balance)
 		
-		self.slide_label= ui.Label(frame=(250,h-140,110,45),text='slide Bal')
-		self.add_subview(self.slide_label)
+		self.slide_date_label= ui.Label(frame=(255,h-215,110,45),text='slide Bal')
+		self.add_subview(self.slide_date_label)
+
+		self.slide_label= ui.Label(frame=(255,h-140,110,45),text='Slide Bal')
+		self.add_subview(self.slide_label)		
 					
 	def draw(self): 
 #		print('+++++++++++++++++++++++++++++')
 		self.b_real_balance.text= '{:.2f}'.format(float(self.acc_list[0].bank_balance))
-		#reset summations for date calcs
+		# reset summations for date calcs
 		sum=sum_slide=0.0	
-		
-
-		# date conversions for deposit date math
+	
+		# Conversion math for deposit dates
 		dep1_date = datetime.strptime(self.acc_list[1].bank_date,'%Y,%m,%d')
 		dep1_date = datetime.date(dep1_date)
 		dep2_date = datetime.strptime(self.acc_list[2].bank_date,'%Y,%m,%d')
@@ -495,9 +515,10 @@ class moniest (ui.View):
 		dep4_date = datetime.date(dep4_date)
 		
 		today = date.today()
+		bal_date=datetime.strptime(self.acc_list[0].bank_date,'%Y-%m-%d')
+		bal_date = datetime.date(bal_date)
 		
 		for i in (self.acc_list):
-			
 			# string conversion to datetime.date 
 			# Inital due day for future due dates 
 			due_day_0= datetime.strptime(i.due_day,'%Y,%m,%d').date()
@@ -507,7 +528,7 @@ class moniest (ui.View):
 			cycle = int(i.cycle)
 			if DEBUG:
 				print('Withdrawls....')
-			due_day_future = next_bill_due_date(due_day_0,cycle)
+			due_day_future = next_bill_due_date(bal_date, due_day_0,cycle)
 			if DEBUG:
 				print('1st billdate:',due_day_0,cycle)
 				print('future bill dates:',end='')
@@ -521,17 +542,16 @@ class moniest (ui.View):
 			if DEBUG:
 				print('\nsum,slide:',sum,sum_slide)
 				print('ext,slide_date',self.ext_date,self.slide_date)
-				
 		#end for loop
 		
 		###########now add deposits###########
 		# deduce first valid deposit day using datetime.day math and extrapolation
 		if DEBUG:
 			print('deposits...')
-		deposit_1_dates = next_bill_due_date(dep1_date, monthly)
-		deposit_2_dates = next_bill_due_date(dep2_date, monthly)
-		deposit_3_dates = next_bill_due_date(dep3_date, two_weeks)
-		deposit_4_dates = next_bill_due_date(dep4_date, monthly)
+		deposit_1_dates = next_bill_due_date(bal_date,dep1_date, monthly)
+		deposit_2_dates = next_bill_due_date(bal_date,dep2_date, monthly)
+		deposit_3_dates = next_bill_due_date(bal_date,dep3_date, two_weeks)
+		deposit_4_dates = next_bill_due_date(bal_date,dep4_date, monthly)
 		if DEBUG:
 				print(deposit_1_dates)
 				print(deposit_2_dates)
@@ -565,7 +585,10 @@ class moniest (ui.View):
 		self.b_ext_balance.text= '{:.2f}'.format(float(self.b_real_balance.text)-sum)
 		
 		self.b_slide_balance.text= '{:.2f}'.format(float(self.b_real_balance.text)-sum_slide)
-		self.slide_label.text=str(self.slide_date)[:10]
+		self.slide_date_label.text=str(self.slide_date)[:10]		
+		self.real_date_label.text=self.acc_list[0].bank_date
+		
+		self.ext_date_label.text=date.strftime(self.ext_date,'%Y-%m-%d')
 
 	def will_close(self):
 		''' Called when app is closed via the 'X' left-button only. 
@@ -574,8 +597,8 @@ class moniest (ui.View):
 		
 ##############Date Functions##############
 ##########################################
-def next_bill_due_date( bill_date, cycle):
-	''' given an initial due date, and cycle, return 3-6 future dates from today. eg: for (bi-)monthly, keep day static and increase month only. For bi-weekly, use 14 days delta and month increases
+def next_bill_due_date( bal_date, bill_date, cycle):
+	''' given an initial due date, and cycle, return 3-6 future dates from today possibly balance date. eg: for (bi-)monthly, keep day static and increase month only. For bi-weekly, use 14 days delta and month increases
 	'''
 	#test for monthly,bi-monthly to use date math instead of +timedeta(days)
 
@@ -588,38 +611,31 @@ def next_bill_due_date( bill_date, cycle):
 	b_yr= bill_date.year
 	dates=[]
 	if (cycle==weekly):
-		# weekly needs check for Feb 28 
-		# this month bill date:
-		this_bill = bill_date
-		this_mo = t_mo
-		this_yr = t_yr
-		b_day_temp=b_day
-		for i in range(15):
-			if b_day_temp>30:
-				b_day_temp-=30
-				this_mo+=1
-			if this_mo > 12:
-				this_mo -= 12
-				this_yr += 1
-			# Feb 28 check 
-			if(this_mo==2 and b_day_temp>28):
-				b_day_temp=28
-			#use time.replace(month=x+i)
-			this_bill = this_bill.replace(month=this_mo,day=b_day_temp,year=this_yr)
-			if this_bill > date.today():
-				dates.append(this_bill)			
-			b_day_temp+=7
-			
-	elif cycle==two_weeks:
+		#every week, dates change
 		this_bill=bill_date
 		# Extrapolate date beyond today		
-		while this_bill < date.today():
+#		while this_bill < date.today():
+		# todo: use bank balance date:
+#		while this_bill < date.today():	
+		while this_bill <= bal_date:
+			this_bill+=timedelta(7)
+		for i in range(15):
+			dates.append(this_bill)
+			this_bill+= timedelta(days=7)		
+		
+	elif cycle==two_weeks:
+		#every 2 weeks dates change
+		this_bill=bill_date
+		# Extrapolate date beyond today		
+#		while this_bill < date.today():
+		while this_bill <= bal_date:	
 			this_bill+=timedelta(14)
 		for i in range(6):
 			dates.append(this_bill)
 			this_bill+= timedelta(days=14)
 				
 	elif (cycle==bi_weekly):
+		# twice month occuring on same dates
 		# this month bill date:
 		this_bill = bill_date
 		this_mo = t_mo
@@ -628,13 +644,15 @@ def next_bill_due_date( bill_date, cycle):
 		for i in range(6):
 			#use time.replace(month=x+i)
 			this_bill = this_bill.replace(month=this_mo,day=b_day,year=this_yr)
-			if this_bill > date.today():				
+#			if this_bill > date.today():
+			if this_bill > bal_date:				
 				dates.append(this_bill)
 			# Feb 28 check 
 			if(this_mo==2 and b_day_corrected>28):
 				b_day_corrected=28
 			this_bill = this_bill.replace(month=this_mo,day=b_day_corrected, year=this_yr)
-			if this_bill > date.today():				
+#			if this_bill > date.today():				
+			if this_bill > bal_date:
 				dates.append(this_bill)
 			this_mo+=1
 			if this_mo > 12:
@@ -656,7 +674,8 @@ def next_bill_due_date( bill_date, cycle):
 			if(this_mo==2 and this_day>28):
 				this_day=28
 			this_bill= this_bill.replace(month=this_mo,day=this_day,year=this_yr)
-			if this_bill >=date.today():
+#			if this_bill >=date.today():
+			if this_bill > bal_date:
 				dates.append(this_bill)
 			# always reset for Feb 28 
 			this_day=b_day
@@ -687,7 +706,8 @@ def next_bill_due_date( bill_date, cycle):
 			this_bill=this_bill.replace (month=this_mo,day=this_day,year=this_yr)
 			# always rest for Feb
 			this_day=b_day
-			if this_bill >= date.today():
+#			if this_bill >= date.today():
+			if this_bill > bal_date:		
 				dates.append(this_bill)
 			this_mo+=2			
 
@@ -695,7 +715,8 @@ def next_bill_due_date( bill_date, cycle):
 		this_bill = bill_date
 		for i in range(4):
 			this_bill = this_bill.replace(year=t_yr+i)
-			if this_bill > date.today() :
+#			if this_bill > date.today() :
+			if this_bill > bal_date:	
 				dates.append(this_bill)
 	else: dates.append(bill_date)
 	return dates
