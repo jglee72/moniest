@@ -54,11 +54,8 @@
 #		Change all dates to datetime.date
 #		todo: how to choose account to delete
 #		todo: how to remove specific subview
-#		todo: redraw screen to update
 #		todo: bill paid day option overides 
 #		due date
-#		todo:Fix keyboard not clearing with 
-#		'X' or 'done'
 #		todo: change color of ? near due date
 # 2019-10-03
 #		added 2 deposit dates, made 
@@ -86,6 +83,9 @@ import console
 import csv
 import dialogs
 import operator
+
+import threading
+
 # Globals:
 #__________#
 done_pushed=False
@@ -97,7 +97,7 @@ bi_monthly=60
 monthly=30
 yearly=365
 none=0
-DEBUG = False
+DEBUG = True
 
 ########### Class Definitions ###########
 ##########################################
@@ -118,12 +118,18 @@ class account (object):
 		self.cycle = cycle_val
 
 #############===============#############
-class accountField (ui.View):
+
+class accountField (object):
 	'''Each account's display of current balance,name,due date, and recurrence setting.  Editable fields for balance and name update. Datepicker for Due Day update, toggle for recurring. 
 	todo: dialog for recurring weekly,bi-monthly, etc
+	Change to object subclass no ill effects to date (2019-10-25)
 	'''	
 	global done_pushed
 	global cancel_pushed
+	global switch_on
+	# experiment for XOR of bill recur switches
+	switch_on=False
+
 	# datepicker needs background running 
 	@ui.in_background
 	def bt_due_day(self,sender):
@@ -155,7 +161,14 @@ class accountField (ui.View):
 		#save to acc_list
 		acc_list= sender.superview.superview.acc_list
 		acc_list[self.idx].due_day= due_pick_str
-	
+		
+	def test_func(sender):
+		''' sender is __main__ accounfield not switch object. Global switch_on not reflective of switch position. __getitem__ returns None. how to use?
+		'''
+		global switch_on
+		switch_on=not switch_on
+#		print(switch_on)
+		
 	# Delegate functions within class definition.  Generic names need checks as they are called by any associated (i.e. textfield) ui object	
 	
 	#Bill Balance Field Action
@@ -186,7 +199,9 @@ class accountField (ui.View):
 		'value':True if float(cycle) == bi_monthly else False}
 		field4={'type':'switch','key':'monthly','title':'Monthly','value':True if float(cycle) == monthly else False}
 		field5={'type':'switch','key':'yearly','title':'Yearly','value':True if float(cycle) == yearly else False}
-		field6={'type':'switch','key':'none','title':'None','value':True if float(cycle) == none else False}	
+		
+		# Can we XOR switches? Action is not even documented to work in a dialogs switch. 
+		field6={'type':'switch','key':'none','title':'None','value':True if float(cycle) == none else False, 'action':self.test_func()} 
 			
 		t1=[field1,field1_2,field1_3]
 		t2=[field1_4,field1_5,field2,field3,field4,field5,field6]
@@ -211,22 +226,22 @@ class accountField (ui.View):
 			if (d_weekly):
 				acc_list[self.idx].cycle=weekly
 				recur_str='weekly'
-			if (d_2weekly):
+			elif (d_2weekly):
 				acc_list[self.idx].cycle=two_weeks
 				recur_str='2-weeks'			
-			if (d_bi_weekly):
+			elif (d_bi_weekly):
 				acc_list[self.idx].cycle=bi_weekly
 				recur_str='bi-week'
-			if  (d_monthly):
+			elif  (d_monthly):
 				acc_list[self.idx].cycle=monthly
 				recur_str='monthly'
-			if  (d_bi_monthly):
+			elif  (d_bi_monthly):
 				acc_list[self.idx].cycle=bi_monthly
 				recur_str='bi-month'
-			if  (d_yearly):
+			elif  (d_yearly):
 				acc_list[self.idx].cycle=yearly
 				recur_str='yearly'
-			if  (d_none):
+			else:
 				acc_list[self.idx].cycle=none
 				recur_str='one-time'
 			#update account list
@@ -235,8 +250,9 @@ class accountField (ui.View):
 			self.recur_status.text = recur_str
 			acc_list[self.idx].paid=d_paid
 			acc_list[self.idx].paid_date=date.strftime(d_paid_date,'%Y-%m-%d')
-		
+
 	def textfield_did_end_editing(self, textfield):
+		print('end')
 		global done_pushed
 		done_pushed=True
 		if(textfield.placeholder=='Balance'):
@@ -252,6 +268,7 @@ class accountField (ui.View):
 		
 	@ui.in_background	
 	def textfield_did_begin_editing (self, textfield):
+		print('begin')
 		# setup and record previous vals
 		old_text=textfield.text
 		global cancel_pushed
@@ -283,6 +300,8 @@ class accountField (ui.View):
 		self.frame_gw=self.frame_wh[0]+10
 		self.frame_gw_=self.frame_wh_[0]+10
 		self.due_button_pressed=False
+		# no worky here:
+#		self.update_interval = 1
 		
 		self.idx=acc.idx
 		
@@ -292,7 +311,7 @@ class accountField (ui.View):
 		self.frame_location = (frame_loc[0]+self.frame_gw_,frame_loc[1])
 		
 		#bill balance field
-		self.bal_field= ui.TextField(frame=self.frame_location+(self.frame_wh),bg_color=(.36, .54, .67), font=('Rockwell',17), text_color= 'grey' if acc.paid == 'True' else 'black', border_color='black', placeholder='Balance',text='{:.2f}'.format(float(acc.balance)),border_width=2, border_radius=20,alignment=ui.ALIGN_LEFT,alpha=0.5,selected=(False),editable=False,keyboard_type=ui.KEYBOARD_NUMBERS, delegate=self)
+		self.bal_field= ui.TextField(frame=self.frame_location+(self.frame_wh),bg_color=(.36, .54, .67), font=('Rockwell',17), text_color= 'red' if acc.paid_date == '2019-09-26' else 'black', border_color='black', placeholder='Balance',text='{:.2f}'.format(float(acc.balance)),border_width=2, border_radius=20,alignment=ui.ALIGN_LEFT,alpha=0.5,selected=(False),editable=False,keyboard_type=ui.KEYBOARD_NUMBERS, delegate=self)
 		
 		self.frame_location = (self.frame_location[0]+self.frame_gw-5,frame_loc[1]-15)
 
@@ -320,6 +339,16 @@ class accountField (ui.View):
 			recur_str='none'		
 		#bill frequency field
 		self.recur_status= ui.TextView(frame= (self.frame_location[0],(self.frame_location[1]+30),90,30),font=('AmericanTypewriter',16),border_width=0, border_radius=15, text= recur_str, bg_color='#c1c1c1',editable=False)
+
+	# no worky here:
+	'''		
+	def update(self):
+		print('xxxxxx')
+		self.bal_field.txt_color = 'red' if acc.paid_date == '2019-09-26' else 'black'
+	
+	def draw(self):
+		print('yes')
+	'''
 		
 #===================================#		
 #++++++++++ MAIN CLASS++++++++++++++#
@@ -392,17 +421,19 @@ class moniest (ui.View):
 	def textfield_did_end_editing(self, textfield):
 		textfield.end_editing()
 		return(True)
-	def add_a_subview(self,acc_list):
+	def add_all_subview(self,acc_list):
 		x_pos= 10
 		y_start =10
 #		y_delta = 50
 
 		for idx,a in enumerate(acc_list):
-			self.acc_fld= accountField(frame_loc=(x_pos,(idx*50+y_start)),acc=a)
-			self.sv.add_subview (self.acc_fld.acc_field)
-			self.sv.add_subview (self.acc_fld.bal_field)
-			self.sv.add_subview (self.acc_fld.due_button)
-			self.sv.add_subview (self.acc_fld.recur_status)
+			self.acc_fld[idx]= accountField(frame_loc=(x_pos,(idx*50+y_start)),acc=a)
+			
+			# add subviews
+			self.sv.add_subview (self.acc_fld[idx].acc_field)
+			self.sv.add_subview (self.acc_fld[idx].bal_field)
+			self.sv.add_subview (self.acc_fld[idx].due_button)
+			self.sv.add_subview (self.acc_fld[idx].recur_status)
 
 	def save_button_(self,sender):
 		write_acc_list(self.acc_list)
@@ -424,7 +455,12 @@ class moniest (ui.View):
 		self.ext_date=date.today()
 		self.slide_date=date.today()
 		self.flex=''
+		# make a list to have index color control
+		self.acc_fld=[]
 		
+		# update attempt
+		self.update_interval = 1
+	
 		# application buttons
 		self.right_button_items = (ui.ButtonItem(title='Done',action= self.done_button),ui.ButtonItem(title='Cancel',action=self.cancel_button))
 		
@@ -433,16 +469,21 @@ class moniest (ui.View):
 		# retreive the database: f() returns a  list of accounts incl bank balance
 		self.acc_list=read_acc_list()
 		
+		# attempt list for acc gui
+		print('acc_list len',range(len(self.acc_list)))
+		for x in range(len(self.acc_list)):
+			self.acc_fld.append(0)
+		
 		#Scrollview for all accounts: increases
 		#total on iphone; keyboard non-blocking
 		self.sv = ui.ScrollView(frame = (0,0,w,h-320),bg_color='#e2e2e2',shows_vertical_scroll_indicator=False,scroll_enabled=True,indicator_style='#ade4ed',flex='')
 	
 		#important content size must be bigger than scrollview to allow for scrolling
-		self.sv.content_size = (w, h*2) 
+		self.sv.content_size = (w, h*2.5) 
 		self.add_subview(self.sv)
 
 		# add accounts list to GUI
-		self.add_a_subview(self.acc_list)
+		self.add_all_subview(self.acc_list)
 		
 		# maintain y pos for next item
 		self.next_y_pos= (len(self.acc_list)*50+10)
@@ -477,8 +518,8 @@ class moniest (ui.View):
 		
 		self.real_date_label= ui.Label(frame=(15,h-215,110,45),text='slide Bal')
 		self.add_subview(self.real_date_label)		
-		# 10/20/30 Day quick Extended bank
-		#  balance extrapolation
+		# 10/20/30 Day Extended Bank
+		#  Balance extrapolation
 		self.b_ext_balance = ui.TextView(frame=(130,h-180,110,45),text='678.65',font=('Verdana',17),editable=False,selectable=False,border_width=0)
 		self.b_ext_balance.bordered=True
 		self.add_subview(self.b_ext_balance)
@@ -488,7 +529,7 @@ class moniest (ui.View):
 
 		self.ext_date_label= ui.Label(frame=(135,h-215,110,45),text=date.strftime(self.ext_date,'%Y-%m-%d'))
 		self.add_subview(self.ext_date_label)				
-		# Slider bank balane extrapolation
+		# Slider Bank Balance extrapolation
 		self.b_slide_balance = ui.TextView(frame=(250,h-180,110,45),text='-86.76',font=('Verdana',17),border_radius=20,border_color='black',border_width=0,editable=False,selectable=False)
 		self.add_subview(self.b_slide_balance)
 		
@@ -521,6 +562,7 @@ class moniest (ui.View):
 		for i in (self.acc_list):
 			# string conversion to datetime.date 
 			# Inital due day for future due dates 
+			i.paid_date = '2019-09-27'
 			due_day_0= datetime.strptime(i.due_day,'%Y,%m,%d').date()
 			if DEBUG:
 				print('\nipaid:',i.paid)
@@ -537,8 +579,16 @@ class moniest (ui.View):
 					print(bill_date,end=',')
 				if self.ext_date >= bill_date:
 					sum+=float(i.paid)
+					i.paid_date='2019-09-26'
+				else:
+#					i.paid_date='2019-09-27'			
+					pass
 				if self.slide_date >= bill_date:
 					sum_slide+=float(i.paid)
+					i.paid_date='2019-09-26'	
+				else:
+					pass
+#					i.paid_date='2019-09-27'			
 			if DEBUG:
 				print('\nsum,slide:',sum,sum_slide)
 				print('ext,slide_date',self.ext_date,self.slide_date)
@@ -587,21 +637,29 @@ class moniest (ui.View):
 		self.b_slide_balance.text= '{:.2f}'.format(float(self.b_real_balance.text)-sum_slide)
 		self.slide_date_label.text=str(self.slide_date)[:10]		
 		self.real_date_label.text=self.acc_list[0].bank_date
-		
 		self.ext_date_label.text=date.strftime(self.ext_date,'%Y-%m-%d')
+		write_acc_list(self.acc_list)		
 
 	def will_close(self):
 		''' Called when app is closed via the 'X' left-button only. 
 		'''
-		write_acc_list(self.acc_list)
+	# Update called every interval
+	def update(self):
+		for idx,a in enumerate(self.acc_list):
+			self.acc_fld[idx].bal_field.text_color = 'red' if a.paid_date == '2019-09-26' else 'black'
+
 		
 ##############Date Functions##############
 ##########################################
-def next_bill_due_date( bal_date, bill_date, cycle):
-	''' given an initial due date, and cycle, return 3-6 future dates from today possibly balance date. eg: for (bi-)monthly, keep day static and increase month only. For bi-weekly, use 14 days delta and month increases
-	'''
-	#test for monthly,bi-monthly to use date math instead of +timedeta(days)
 
+def last_day_of_month(date):
+		if date.month == 12:
+			return date.replace(day=31)
+		return date.replace(month=date.month+1, day=1) - dt.timedelta(days=1)
+		
+def next_bill_due_date( bal_date, bill_date, cycle):
+	''' given an initial due date, and cycle, return 3-6 future dates from dayof bank balance input. eg: for (bi-)monthly, keep day static and increase month only. For bi-weekly, use 14 days delta and month increases
+	'''
 	t_day= date.today().day
 	t_mo= date.today().month
 	t_yr= date.today().year
@@ -610,49 +668,46 @@ def next_bill_due_date( bal_date, bill_date, cycle):
 	b_mo= bill_date.month
 	b_yr= bill_date.year
 	dates=[]
+	
 	if (cycle==weekly):
 		#every week, dates change
 		this_bill=bill_date
 		# Extrapolate date beyond today		
-#		while this_bill < date.today():
-		# todo: use bank balance date:
-#		while this_bill < date.today():	
 		while this_bill <= bal_date:
 			this_bill+=timedelta(7)
-		for i in range(15):
-			dates.append(this_bill)
+		for i in range(20):
+			if this_bill >= bill_date:
+				dates.append(this_bill)
 			this_bill+= timedelta(days=7)		
 		
 	elif cycle==two_weeks:
 		#every 2 weeks dates change
 		this_bill=bill_date
 		# Extrapolate date beyond today		
-#		while this_bill < date.today():
 		while this_bill <= bal_date:	
 			this_bill+=timedelta(14)
 		for i in range(6):
-			dates.append(this_bill)
+			if this_bill >= bill_date:
+				dates.append(this_bill)
 			this_bill+= timedelta(days=14)
 				
 	elif (cycle==bi_weekly):
 		# twice month occuring on same dates
 		# this month bill date:
 		this_bill = bill_date
-		this_mo = t_mo
-		this_yr = t_yr
+		this_mo = b_mo
+		this_yr = b_yr
 		b_day_corrected=b_day+14
-		for i in range(6):
+		for i in range(10):
 			#use time.replace(month=x+i)
 			this_bill = this_bill.replace(month=this_mo,day=b_day,year=this_yr)
-#			if this_bill > date.today():
-			if this_bill > bal_date:				
+			if this_bill > bal_date and this_bill >= bill_date:				
 				dates.append(this_bill)
 			# Feb 28 check 
 			if(this_mo==2 and b_day_corrected>28):
 				b_day_corrected=28
 			this_bill = this_bill.replace(month=this_mo,day=b_day_corrected, year=this_yr)
-#			if this_bill > date.today():				
-			if this_bill > bal_date:
+			if this_bill > bal_date and this_bill >= bill_date:
 				dates.append(this_bill)
 			this_mo+=1
 			if this_mo > 12:
@@ -660,11 +715,12 @@ def next_bill_due_date( bal_date, bill_date, cycle):
 				this_yr += 1
 			# always reset for Feb 28 
 			b_day_corrected=b_day+14
+			
 	elif (cycle==monthly):
 		# monthly needs check for Feb 28 
 		this_bill = bill_date
-		this_mo = t_mo
-		this_yr = t_yr
+		this_mo = b_mo
+		this_yr = b_yr
 		this_day = b_day
 		for i in range(6):
 			if this_mo > 12:
@@ -673,9 +729,10 @@ def next_bill_due_date( bal_date, bill_date, cycle):
 			# Feb 28 check 
 			if(this_mo==2 and this_day>28):
 				this_day=28
+			if this_day == 31:
+				this_day=30
 			this_bill= this_bill.replace(month=this_mo,day=this_day,year=this_yr)
-#			if this_bill >=date.today():
-			if this_bill > bal_date:
+			if this_bill > bal_date and this_bill >= bill_date:
 				dates.append(this_bill)
 			# always reset for Feb 28 
 			this_day=b_day
@@ -690,12 +747,12 @@ def next_bill_due_date( bal_date, bill_date, cycle):
 		# both even do nothing
 		# both odd do nothing
 		if (operator.xor(odd_bill_month,  odd_this_month)):
-			this_mo = t_mo+1
+			this_mo = b_mo+1
 		else:
-			this_mo = t_mo
+			this_mo = b_mo
 		this_day=b_day
 		this_bill = bill_date
-		this_yr = t_yr
+		this_yr = b_yr
 		for i in range(6):
 			if this_mo > 12:
 				this_mo -= 12
@@ -707,7 +764,7 @@ def next_bill_due_date( bal_date, bill_date, cycle):
 			# always rest for Feb
 			this_day=b_day
 #			if this_bill >= date.today():
-			if this_bill > bal_date:		
+			if this_bill > bal_date and this_bill >= bill_date:		
 				dates.append(this_bill)
 			this_mo+=2			
 
@@ -715,10 +772,13 @@ def next_bill_due_date( bal_date, bill_date, cycle):
 		this_bill = bill_date
 		for i in range(4):
 			this_bill = this_bill.replace(year=t_yr+i)
-#			if this_bill > date.today() :
-			if this_bill > bal_date:	
+
+			if this_bill > bal_date and this_bill >= bill_date:	
 				dates.append(this_bill)
-	else: dates.append(bill_date)
+	else: 
+		if bill_date > bal_date: 	
+				dates.append(bill_date)
+		
 	return dates
 		
 ########### CSV DB Functions ############
@@ -730,7 +790,6 @@ def next_bill_due_date( bal_date, bill_date, cycle):
 # 4. run program once, exit, and 
 # 5. verify csv has new column and all old and new data
 # 6. finally, add new column to read()
-# todo: self detect new column?
 fields= ['idx','name','balance','due_day','repeat','bank_bal','bank_date','paid','paid_date','cycle']
 
 def read_acc_list():
@@ -769,42 +828,60 @@ def write_acc_list(acc_list):
 ##########################################
 
 # Application buttons {Done,Cancel,Save} have a quirk (bug): they do not have a superview. therefore a global trigger is polled elsewhere. 'Save' required access to account list acc_list so a 'self' method was used
-#where cancel and donewere 
+#where cancel and done were...? 
 	
 # Other button actions
 	
 def add_account_tapped(sender):
+	# todo: new accounts init on 31st mo fail non 31 day months
+	# todo: new month fails moniest update. 	
 	adda=sender.superview
-	#add an account
-	ac_new=account(idx_val=len(adda.acc_list))
+
+	# scroll to end of account	
+	adda.sv.content_offset = (0,adda.next_y_pos-300)
+	# add an account
+	ac_new= account(idx_val=len(adda.acc_list))
 	#append account list
 	adda.acc_list.append(ac_new)
 	
-	# update database
-	acc_fld=accountField(frame_loc=(10,(adda.next_y_pos)),acc=ac_new)
-	adda.sv.add_subview (acc_fld.acc_field)
-	adda.sv.add_subview (acc_fld.bal_field)
-	adda.sv.add_subview (acc_fld.due_button)
-	adda.sv.add_subview (acc_fld.recur_status)
-#	adda.sv.add_subview (acc_fld.paid_button)
+	# add GUI 
+	account_fld=accountField(frame_loc=(10,(adda.next_y_pos)),acc=ac_new)
+	adda.sv.add_subview (account_fld.acc_field)
+	adda.sv.add_subview (account_fld.bal_field)
+	adda.sv.add_subview (account_fld.due_button)
+	adda.sv.add_subview (account_fld.recur_status)
 
+	adda.acc_fld.append(account_fld)
+	
+	# update database
 	adda.next_y_pos+=50
+	write_acc_list(adda.acc_list)
 
 def rem_account_tapped(sender):
 	'''Remove last account added. eventually allow for any account to be deleted. maybe simple to remove from acc list, then write/read 
 	'''
-	verify = console.alert('Delete Last Account?','Restart Application after Deletions','Cancel','Continue',hide_cancel_button=True)
+	sv=sender.superview	
+	# scroll to end of account
+	sv.sv.content_offset = (0,sv.next_y_pos-300)
+	verify = console.alert('Delete Last Account?','Restart Application after each Deletion', 'Cancel','Continue', hide_cancel_button=True)
 	if verify == 2: #Contine chosen
-		sv=sender.superview
+		
+		last_acc = len(sv.acc_list)-1
+
 		# Remove last account from list. Use i=n for different account in future 
 		sv.acc_list.pop()
-		#Only rem last account when opened: 
-		#todo: needs to remove this session's new additions as well: how?
-		sv.remove_subview(sv.acc_fld.due_button)
-		sv.remove_subview(sv.acc_fld.recur_status)
-		sv.remove_subview(sv.acc_fld.bal_field)	
-		sv.remove_subview(sv.acc_fld.acc_field)			
+
+		# remove_subview() only removes last
+		# account (when opened) from GUI. 
+		# Succesive calls do not effect GUI. 
+		# todo: needs to remove this session's new additions as well: how?
+		sv.remove_subview(sv.acc_fld[last_acc].due_button)
+		sv.remove_subview(sv.acc_fld[last_acc].recur_status)
+		sv.remove_subview(sv.acc_fld[last_acc].bal_field)	
+		sv.remove_subview(sv.acc_fld[last_acc].acc_field)			
+		sv.acc_fld.pop()
 		sv.next_y_pos-=50
+		sv.set_needs_display()
 		
 def ext_date_tapped(sender):
 	s=sender
