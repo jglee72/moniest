@@ -75,6 +75,14 @@
 #		dates beyond bank balance date. was 
 #		today date. 
 #		Added dates to all balances in GUI
+# 2019-11-06
+#		add list of account fields to
+#		turn balance values red when used. 
+#		Allowed deletion of more than one 
+#		account:todo: choose account to del
+#		Added 'summed' flag for above
+#		fixed multiple bugs with bill math
+#		Add description of account fields
 #########################################
 import ui
 from time import sleep
@@ -83,8 +91,6 @@ import console
 import csv
 import dialogs
 import operator
-
-import threading
 
 # Globals:
 #__________#
@@ -97,7 +103,7 @@ bi_monthly=60
 monthly=30
 yearly=365
 none=0
-DEBUG = True
+DEBUG = False
 
 ########### Class Definitions ###########
 ##########################################
@@ -105,7 +111,7 @@ class account (object):
 	'''Class for handling data for each account+
 	Currently all data is handled directly -i.e. there is no class modules to handle data security at the moment. 
 	'''
-	def __init__(self,idx_val=None,name_val='',bal_val='0.0',due_day_val= date.strftime(date.today(),'%Y,%m,%d'), repeat_val=True,dep_val=0.0, dep_date_val= date.strftime(date.today(),'%Y,%m,%d'), paid_val=0.00, paid_date_val=date.strftime(date.today(),'%Y-%m-%d'), cycle_val=monthly):
+	def __init__(self,idx_val=None,name_val='',bal_val='0.0',due_day_val= date.strftime(date.today(),'%Y,%m,%d'), repeat_val=True,dep_val=0.0, dep_date_val= date.strftime(date.today(),'%Y,%m,%d'), paid_val=0.00, paid_date_val=date.strftime(date.today(),'%Y-%m-%d'), cycle_val=monthly, summed_val=False):
 		self.idx=idx_val
 		self.name=name_val
 		self.balance=bal_val
@@ -116,6 +122,7 @@ class account (object):
 		self.paid = paid_val
 		self.paid_date = paid_date_val
 		self.cycle = cycle_val
+		self.summed = summed_val
 
 #############===============#############
 
@@ -311,7 +318,7 @@ class accountField (object):
 		self.frame_location = (frame_loc[0]+self.frame_gw_,frame_loc[1])
 		
 		#bill balance field
-		self.bal_field= ui.TextField(frame=self.frame_location+(self.frame_wh),bg_color=(.36, .54, .67), font=('Rockwell',17), text_color= 'red' if acc.paid_date == '2019-09-26' else 'black', border_color='black', placeholder='Balance',text='{:.2f}'.format(float(acc.balance)),border_width=2, border_radius=20,alignment=ui.ALIGN_LEFT,alpha=0.5,selected=(False),editable=False,keyboard_type=ui.KEYBOARD_NUMBERS, delegate=self)
+		self.bal_field= ui.TextField(frame=self.frame_location+(self.frame_wh),bg_color=(.36, .54, .67), font=('Rockwell',17), text_color= 'red' if acc.summed == True else 'black', border_color='black', placeholder='Balance',text='{:.2f}'.format(float(acc.balance)),border_width=2, border_radius=20,alignment=ui.ALIGN_LEFT,alpha=0.5,selected=(False),editable=False,keyboard_type=ui.KEYBOARD_NUMBERS, delegate=self)
 		
 		self.frame_location = (self.frame_location[0]+self.frame_gw-5,frame_loc[1]-15)
 
@@ -340,16 +347,6 @@ class accountField (object):
 		#bill frequency field
 		self.recur_status= ui.TextView(frame= (self.frame_location[0],(self.frame_location[1]+30),90,30),font=('AmericanTypewriter',16),border_width=0, border_radius=15, text= recur_str, bg_color='#c1c1c1',editable=False)
 
-	# no worky here:
-	'''		
-	def update(self):
-		print('xxxxxx')
-		self.bal_field.txt_color = 'red' if acc.paid_date == '2019-09-26' else 'black'
-	
-	def draw(self):
-		print('yes')
-	'''
-		
 #===================================#		
 #++++++++++ MAIN CLASS++++++++++++++#
 #___________________________________#
@@ -470,7 +467,8 @@ class moniest (ui.View):
 		self.acc_list=read_acc_list()
 		
 		# attempt list for acc gui
-		print('acc_list len',range(len(self.acc_list)))
+		if DEBUG:
+			print('acc_list len',range(len(self.acc_list)))
 		for x in range(len(self.acc_list)):
 			self.acc_fld.append(0)
 		
@@ -562,7 +560,6 @@ class moniest (ui.View):
 		for i in (self.acc_list):
 			# string conversion to datetime.date 
 			# Inital due day for future due dates 
-			i.paid_date = '2019-09-27'
 			due_day_0= datetime.strptime(i.due_day,'%Y,%m,%d').date()
 			if DEBUG:
 				print('\nipaid:',i.paid)
@@ -579,16 +576,11 @@ class moniest (ui.View):
 					print(bill_date,end=',')
 				if self.ext_date >= bill_date:
 					sum+=float(i.paid)
-					i.paid_date='2019-09-26'
-				else:
-#					i.paid_date='2019-09-27'			
-					pass
+					i.summed=True
 				if self.slide_date >= bill_date:
 					sum_slide+=float(i.paid)
-					i.paid_date='2019-09-26'	
-				else:
-					pass
-#					i.paid_date='2019-09-27'			
+					i.summed=True
+					
 			if DEBUG:
 				print('\nsum,slide:',sum,sum_slide)
 				print('ext,slide_date',self.ext_date,self.slide_date)
@@ -646,7 +638,7 @@ class moniest (ui.View):
 	# Update called every interval
 	def update(self):
 		for idx,a in enumerate(self.acc_list):
-			self.acc_fld[idx].bal_field.text_color = 'red' if a.paid_date == '2019-09-26' else 'black'
+			self.acc_fld[idx].bal_field.text_color = 'red' if a.summed == True else 'black'
 
 		
 ##############Date Functions##############
@@ -786,11 +778,25 @@ def next_bill_due_date( bal_date, bill_date, cycle):
 # When adding new column need to write before reading (because the coulumn is not there yet, and read is first operation and will fail). All data can be overwritten so make copies, git, or dropbox csv prior. 
 # 1. add new column to 'fields'
 # 2. add new column to write()
-# 3. add new column to account class as needed, incl initialization
+# 3. add new column to account class, incl initialization as needed
 # 4. run program once, exit, and 
 # 5. verify csv has new column and all old and new data
 # 6. finally, add new column to read()
-fields= ['idx','name','balance','due_day','repeat','bank_bal','bank_date','paid','paid_date','cycle']
+'''
+FIELDS:
+======
++ idx: index number
++ name:  name of account or bill
++ balance: current full balance or recurring bill balance
++ due_day: recurring or one time bill due date. Initial day used in calculations. 
++ repeat: indicator that the bill is repeating
++ bank_bal: valid in first 4 rows only, bank balance or recurring deposit amount
++ paid: amount to be paid on bill due date (or paid_date). This can be used for partial payments, but generally is full balance due amount. 
++ paid_date: todo: needs implementing and intit to due date. Generally pay before due date. Changes a lot normally. 
++ cycle: an integer associated with bill/deposit frequency
++ summed: flag used to indicate a bill is used in slide and extended date calculations. 
+'''
+fields= ['idx','name','balance','due_day','repeat','bank_bal','bank_date','paid','paid_date','cycle','summed']
 
 def read_acc_list():
 	# initial check to see if csv is empty
@@ -812,7 +818,8 @@ def read_acc_list():
 		for idx,row in enumerate(reader):
 			ac= account( idx_val=idx, name_val=row['name'], bal_val=row['balance'], due_day_val=row['due_day'], repeat_val=row['repeat'],
 			dep_val=row['bank_bal'],
-			dep_date_val=row['bank_date'], paid_val=row['paid'], paid_date_val=row['paid_date'], cycle_val=row['cycle'] )
+			dep_date_val=row['bank_date'], paid_val=row['paid'], paid_date_val=row['paid_date'], cycle_val=row['cycle'],
+			summed_val=row['summed'] )
 			acc_list.append(ac)
 	return acc_list
 
@@ -822,7 +829,8 @@ def write_acc_list(acc_list):
 		writer.writeheader()
 		for i in range(len(acc_list)):
 			writer.writerow ({ 'idx':i , 'name':acc_list[i].name , 'balance':acc_list[i].balance, 'due_day': acc_list[i].due_day, 'repeat':acc_list[i].repeat, 'bank_bal':acc_list[i].bank_balance,
-			'bank_date':acc_list[i].bank_date, 'paid':acc_list[i].paid, 'paid_date':acc_list[i].paid_date, 'cycle':acc_list[i].cycle })
+			'bank_date':acc_list[i].bank_date, 'paid':acc_list[i].paid, 'paid_date':acc_list[i].paid_date, 'cycle':acc_list[i].cycle,
+			'summed':acc_list[i].summed })
 			
 ########### Button Actions ##############
 ##########################################
