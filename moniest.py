@@ -83,6 +83,10 @@
 #		Added 'summed' flag for above
 #		fixed multiple bugs with bill math
 #		Add description of account fields
+#	2019-11-07
+#		Fix color not reverting when not used
+#		simplify bi-month bill dates bug with 
+#		change of bill process
 #########################################
 import ui
 from time import sleep
@@ -198,7 +202,7 @@ class accountField (object):
 		field1={'type':'number','key':'balance','title':'Current Balance:  ','value':'{:0.2f}'.format(float(balance_new))}
 		field1_2={'type':'number','key':'sched_payment','title':'Scheduled Payment:  ','value':'{:0.2f}'.format(float(amt_pay))}
 		
-		field1_3={'type':'date',' key':'sched_pay_date','title':'Scheduled Payment Date','value':datetime.strptime(acc_list[self.idx].paid_date,'%Y-%m-%d')}
+		field1_3={'type':'date',' key':'sched_pay_date','title':'Scheduled Payment Date','value':datetime.strptime(acc_list[self.idx].due_day,'%Y,%m,%d')}
 		field1_4={'type':'switch','key':'weekly','title':'Weekly','value':True if float(cycle) == weekly else False}
 		field1_5={'type':'switch','key':'2weekly','title':'Every 2 Weeks','value':True if float(cycle) == two_weeks else False}		
 		field2={'type':'switch','key':'bi_weekly','title':'Bi Weekly','value':True if float(cycle) == bi_weekly else False}
@@ -207,7 +211,7 @@ class accountField (object):
 		field4={'type':'switch','key':'monthly','title':'Monthly','value':True if float(cycle) == monthly else False}
 		field5={'type':'switch','key':'yearly','title':'Yearly','value':True if float(cycle) == yearly else False}
 		
-		# Can we XOR switches? Action is not even documented to work in a dialogs switch. 
+		# Can we XOR switches? Action is not  documented to work in a dialogs switch, tests prove ok. 
 		field6={'type':'switch','key':'none','title':'None','value':True if float(cycle) == none else False, 'action':self.test_func()} 
 			
 		t1=[field1,field1_2,field1_3]
@@ -259,7 +263,6 @@ class accountField (object):
 			acc_list[self.idx].paid_date=date.strftime(d_paid_date,'%Y-%m-%d')
 
 	def textfield_did_end_editing(self, textfield):
-		print('end')
 		global done_pushed
 		done_pushed=True
 		if(textfield.placeholder=='Balance'):
@@ -275,7 +278,6 @@ class accountField (object):
 		
 	@ui.in_background	
 	def textfield_did_begin_editing (self, textfield):
-		print('begin')
 		# setup and record previous vals
 		old_text=textfield.text
 		global cancel_pushed
@@ -557,6 +559,8 @@ class moniest (ui.View):
 		bal_date=datetime.strptime(self.acc_list[0].bank_date,'%Y-%m-%d')
 		bal_date = datetime.date(bal_date)
 		
+		set_summed=set(())
+		
 		for i in (self.acc_list):
 			# string conversion to datetime.date 
 			# Inital due day for future due dates 
@@ -576,15 +580,23 @@ class moniest (ui.View):
 					print(bill_date,end=',')
 				if self.ext_date >= bill_date:
 					sum+=float(i.paid)
-					i.summed=True
+					set_summed.update((i,))
+
 				if self.slide_date >= bill_date:
 					sum_slide+=float(i.paid)
-					i.summed=True
+					set_summed.update((i,))
 					
 			if DEBUG:
 				print('\nsum,slide:',sum,sum_slide)
 				print('ext,slide_date',self.ext_date,self.slide_date)
 		#end for loop
+		
+		for t in self.acc_list:
+			if t in set_summed:
+				t.summed=True
+			else:
+				t.summed=False
+		
 		
 		###########now add deposits###########
 		# deduce first valid deposit day using datetime.day math and extrapolation
@@ -635,6 +647,7 @@ class moniest (ui.View):
 	def will_close(self):
 		''' Called when app is closed via the 'X' left-button only. 
 		'''
+		write_acc_list(self.acc_list)
 	# Update called every interval
 	def update(self):
 		for idx,a in enumerate(self.acc_list):
@@ -730,18 +743,8 @@ def next_bill_due_date( bal_date, bill_date, cycle):
 			this_day=b_day
 			this_mo+=1						
 
-	elif (cycle==bi_monthly):#needs to know which month to start. maybe even odd?
-	#if true month is odd
-		odd_bill_month= b_mo%2
-		odd_this_month= t_mo%2
-		# bill odd today even = add mo
-		# bill even today odd = add mo
-		# both even do nothing
-		# both odd do nothing
-		if (operator.xor(odd_bill_month,  odd_this_month)):
-			this_mo = b_mo+1
-		else:
-			this_mo = b_mo
+	elif (cycle==bi_monthly):
+		this_mo=b_mo
 		this_day=b_day
 		this_bill = bill_date
 		this_yr = b_yr
