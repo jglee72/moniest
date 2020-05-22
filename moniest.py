@@ -87,6 +87,10 @@
 #		Fix color not reverting when not used
 #		simplify bi-month bill dates bug with 
 #		change of bill process
+#	2020-05-17
+#		Changes for Xr layout. Modifications for 
+#		date calcs extrapolating from today, 
+#		to bank balance date. 
 #########################################
 import ui
 from time import sleep
@@ -452,6 +456,7 @@ class moniest (ui.View):
 		self.name='Moniest'
 		self.background_color='#cacaca'
 		self.ext_date=date.today()
+		self.bank_date=date.today()
 		self.slide_date=date.today()
 		self.flex=''
 		# make a list to have index color control
@@ -467,7 +472,8 @@ class moniest (ui.View):
 				
 		# retreive the database: f() returns a  list of accounts incl bank balance
 		self.acc_list=read_acc_list()
-		
+		self.ext_date=self.bank_date= self.slide_date = datetime.date(datetime.strptime(self.acc_list[0].bank_date, "%Y-%m-%d"))
+
 		# attempt list for acc gui
 		if DEBUG:
 			print('acc_list len',range(len(self.acc_list)))
@@ -476,7 +482,7 @@ class moniest (ui.View):
 		
 		#Scrollview for all accounts: increases
 		#total on iphone; keyboard non-blocking
-		self.sv = ui.ScrollView(frame = (0,0,w,h-320),bg_color='#e2e2e2',shows_vertical_scroll_indicator=False,scroll_enabled=True,indicator_style='#ade4ed',flex='')
+		self.sv = ui.ScrollView(frame = (0,0,w,h-350),bg_color='#e2e2e2',shows_vertical_scroll_indicator=False,scroll_enabled=True,indicator_style='#ade4ed',flex='')
 	
 		#important content size must be bigger than scrollview to allow for scrolling
 		self.sv.content_size = (w, h*2.5) 
@@ -489,54 +495,57 @@ class moniest (ui.View):
 		self.next_y_pos= (len(self.acc_list)*50+10)
 		
 		# button to add new account
-		self.add_account = ui.Button(title='Add Account',font=('Copperplate',17),frame=(10,h-310,0,0),action=add_account_tapped,border_width=0,border_color='#676767')
+		self.add_account = ui.Button(title='Add Account',font=('Copperplate',17),frame=(10,h-340,0,0),action=add_account_tapped,border_width=0,border_color='#676767')
 
 		self.add_subview(self.add_account)
 		
 		# button to delete last account
-		self.rem_account = ui.Button(title='Rem Account',font=('Copperplate',17),frame=(10,h-280,0,0),action=rem_account_tapped,border_width=0,border_color='#676767')
+		self.rem_account = ui.Button(title='Rem Account',font=('Copperplate',17),frame=(10,h-310,0,0),action=rem_account_tapped,border_width=0,border_color='#676767')
 
 		self.add_subview(self.rem_account)
 		
 		#Extended date picker
-		self.ext_date_seg = ui.SegmentedControl (segments=('10D','20D','30D'), frame=(170,h-300,180,35),selected_index=-1 , action=ext_date_tapped)
+		self.ext_date_seg = ui.SegmentedControl (segments=('10D','20D','30D'), frame=(170,h-330,180,35),selected_index=-1 , action=ext_date_tapped)
 		
 		self.add_subview(self.ext_date_seg)
 		
 		# slider to calculate slide date balance
-		self.date_slider= ui.Slider(frame=(10,h-235,350,10),action=slider_changed, continuous=False)
+		self.date_slider= ui.Slider(frame=(10,h-265,350,10),action=slider_changed, continuous=False)
 		self.add_subview(self.date_slider)
 		
 		# Bank balances
 		# Real bank balance and date recorded
-		self.b_real_balance = ui.TextView(frame=(10,h-180,110,45), placeholder = 'Bank Bal' , text='{:.2f}'.format(float(self.acc_list[0].bank_balance)) ,  border_width=0,border_radius=5 , bordered=True, delegate=self,font=('Verdana',17))
+		self.b_real_balance = ui.TextView(frame=(10,h-210,110,45), placeholder = 'Bank Bal' , text='{:.2f}'.format(float(self.acc_list[0].bank_balance)) ,  border_width=0,border_radius=5 , bordered=True, delegate=self,font=('Verdana',17))
 
 		self.add_subview(self.b_real_balance)
 		
-		self.real_label= ui.Label(frame=(15,h-140,110,45),text='Bank Bal')
+		self.real_label= ui.Label(frame=(15,h-170,110,45),text='Bank Bal')
 		self.add_subview(self.real_label)
 		
-		self.real_date_label= ui.Label(frame=(15,h-215,110,45),text='slide Bal')
+		self.real_date_label= ui.Label(frame=(15,h-245,110,45),text='slide Bal')
 		self.add_subview(self.real_date_label)		
 		# 10/20/30 Day Extended Bank
 		#  Balance extrapolation
-		self.b_ext_balance = ui.TextView(frame=(130,h-180,110,45),text='678.65',font=('Verdana',17),editable=False,selectable=False,border_width=0)
+		# balance
+		self.b_ext_balance = ui.TextView(frame=(130,h-210,110,45),text='678.65',font=('Verdana',17),editable=False,selectable=False,border_width=0)
 		self.b_ext_balance.bordered=True
 		self.add_subview(self.b_ext_balance)
-		
-		self.ext_label= ui.Label(frame=(135,h-140,110,45),text='Ext Bal')
+		# text
+		self.ext_label= ui.Label(frame=(135,h-170,110,45),text='Ext Bal')
 		self.add_subview(self.ext_label)
-
-		self.ext_date_label= ui.Label(frame=(135,h-215,110,45),text=date.strftime(self.ext_date,'%Y-%m-%d'))
+		# date
+		self.ext_date_label= ui.Label(frame=(135,h-245,110,45),text=date.strftime(self.ext_date,'%Y-%m-%d'))
 		self.add_subview(self.ext_date_label)				
-		# Slider Bank Balance extrapolation
-		self.b_slide_balance = ui.TextView(frame=(250,h-180,110,45),text='-86.76',font=('Verdana',17),border_radius=20,border_color='black',border_width=0,editable=False,selectable=False)
-		self.add_subview(self.b_slide_balance)
-		
-		self.slide_date_label= ui.Label(frame=(255,h-215,110,45),text='slide Bal')
-		self.add_subview(self.slide_date_label)
 
-		self.slide_label= ui.Label(frame=(255,h-140,110,45),text='Slide Bal')
+		# Slider Bank Balance extrapolation
+		# balance
+		self.b_slide_balance = ui.TextView(frame=(250,h-210,110,45),text='-86.76',font=('Verdana',17),border_radius=20,border_color='black',border_width=0,editable=False,selectable=False)
+		self.add_subview(self.b_slide_balance)
+		# date
+		self.slide_date_label= ui.Label(frame=(255,h-245,110,45),text='slide Bal2')
+		self.add_subview(self.slide_date_label)
+		# text
+		self.slide_label= ui.Label(frame=(255,h-170,110,45),text='Slide Bal')
 		self.add_subview(self.slide_label)		
 					
 	def draw(self): 
@@ -567,7 +576,7 @@ class moniest (ui.View):
 			due_day_0= datetime.strptime(i.due_day,'%Y,%m,%d').date()
 			if DEBUG:
 				print('\nipaid:',i.paid)
-			# get cycle info from account
+		# get cycle info from account
 			cycle = int(i.cycle)
 			if DEBUG:
 				print('Withdrawls....')
@@ -577,7 +586,7 @@ class moniest (ui.View):
 				print('future bill dates:',end='')
 			for bill_date in due_day_future:
 				if DEBUG:
-					print(bill_date,end=',')
+					print(bill_date,type(bill_date),end=',')
 				if self.ext_date >= bill_date:
 					sum+=float(i.paid)
 					set_summed.update((i,))
@@ -900,9 +909,7 @@ def ext_date_tapped(sender):
 	#returns set{0,2}
 	idx=s.selected_index
 	
-	today_date=date.today()
-
-	sv.ext_date=today_date + (idx+1)*timedelta(days=10)
+	sv.ext_date=sv.bank_date + (idx+1)*timedelta(days=10)
 	sv.set_needs_display()
 		
 def slider_changed(sender):
@@ -911,9 +918,8 @@ def slider_changed(sender):
 	s=sender
 	sv=sender.superview
 	idx=sender.value
-	today_date=date.today()
 	
-	sv.slide_date=today_date + (idx)*timedelta(days=90)
+	sv.slide_date=sv.bank_date + (idx)*timedelta(days=90)
 
 	sv.set_needs_display()
 	
