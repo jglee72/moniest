@@ -91,6 +91,9 @@
 #		Changes for Xr layout. Modifications for 
 #		date calcs extrapolating from today, 
 #		to bank balance date. 
+# 2020-05-26
+#		Use While loop in next_bill_date()
+#		for cleaner/less future bill dates
 #########################################
 import ui
 from time import sleep
@@ -458,6 +461,7 @@ class moniest (ui.View):
 		self.ext_date=date.today()
 		self.bank_date=date.today()
 		self.slide_date=date.today()
+		self.bal_date=date.today()
 		self.flex=''
 		# make a list to have index color control
 		self.acc_fld=[]
@@ -472,7 +476,9 @@ class moniest (ui.View):
 				
 		# retreive the database: f() returns a  list of accounts incl bank balance
 		self.acc_list=read_acc_list()
-		self.ext_date=self.bank_date= self.slide_date = datetime.date(datetime.strptime(self.acc_list[0].bank_date, "%Y-%m-%d"))
+		
+		# Want all Gui dates to start from deposit entry date
+		self.ext_date=self.bank_date= self.slide_date = self.bal_date = datetime.date(datetime.strptime(self.acc_list[0].bank_date, "%Y-%m-%d"))
 
 		# attempt list for acc gui
 		if DEBUG:
@@ -565,8 +571,8 @@ class moniest (ui.View):
 		dep4_date = datetime.date(dep4_date)
 		
 		today = date.today()
-		bal_date=datetime.strptime(self.acc_list[0].bank_date,'%Y-%m-%d')
-		bal_date = datetime.date(bal_date)
+#		bal_date=datetime.strptime(self.acc_list[0].bank_date,'%Y-%m-%d')
+#		bal_date = datetime.date(bal_date)
 		
 		set_summed=set(())
 		
@@ -580,7 +586,7 @@ class moniest (ui.View):
 			cycle = int(i.cycle)
 			if DEBUG:
 				print('Withdrawls....')
-			due_day_future = next_bill_due_date(bal_date, due_day_0,cycle)
+			due_day_future = next_bill_due_date(self.bank_date, due_day_0,cycle)
 			if DEBUG:
 				print('1st billdate:',due_day_0,cycle)
 				print('future bill dates:',end='')
@@ -611,10 +617,10 @@ class moniest (ui.View):
 		# deduce first valid deposit day using datetime.day math and extrapolation
 		if DEBUG:
 			print('deposits...')
-		deposit_1_dates = next_bill_due_date(bal_date,dep1_date, monthly)
-		deposit_2_dates = next_bill_due_date(bal_date,dep2_date, monthly)
-		deposit_3_dates = next_bill_due_date(bal_date,dep3_date, two_weeks)
-		deposit_4_dates = next_bill_due_date(bal_date,dep4_date, monthly)
+		deposit_1_dates = next_bill_due_date(self.bal_date,dep1_date, monthly)
+		deposit_2_dates = next_bill_due_date(self.bal_date,dep2_date, monthly)
+		deposit_3_dates = next_bill_due_date(self.bal_date,dep3_date, two_weeks)
+		deposit_4_dates = next_bill_due_date(self.bal_date,dep4_date, monthly)
 		if DEBUG:
 				print(deposit_1_dates)
 				print(deposit_2_dates)
@@ -688,8 +694,8 @@ def next_bill_due_date( bal_date, bill_date, cycle):
 		this_bill=bill_date
 		# Extrapolate date beyond today		
 		while this_bill <= bal_date:
-			this_bill+=timedelta(7)
-		for i in range(20):
+			this_bill+=timedelta(10)
+		for i in range(15):
 			if this_bill >= bill_date:
 				dates.append(this_bill)
 			this_bill+= timedelta(days=7)		
@@ -700,11 +706,12 @@ def next_bill_due_date( bal_date, bill_date, cycle):
 		# Extrapolate date beyond today		
 		while this_bill <= bal_date:	
 			this_bill+=timedelta(14)
-		for i in range(6):
+		for i in range(7):
 			if this_bill >= bill_date:
 				dates.append(this_bill)
 			this_bill+= timedelta(days=14)
-				
+
+			
 	elif (cycle==bi_weekly):
 		# twice month occuring on same dates
 		# this month bill date:
@@ -712,31 +719,43 @@ def next_bill_due_date( bal_date, bill_date, cycle):
 		this_mo = b_mo
 		this_yr = b_yr
 		b_day_corrected=b_day+14
-		for i in range(10):
+		count = 4
+#		for i in range(20):
+		while (count != 0):
 			#use time.replace(month=x+i)
+			# always reset for Feb 28 
+			b_day_corrected=b_day+14
+			if this_mo > 12:
+				this_mo -= 12
+				this_yr += 1
 			this_bill = this_bill.replace(month=this_mo,day=b_day,year=this_yr)
-			if this_bill > bal_date and this_bill >= bill_date:				
+			if this_bill < bal_date:
+				this_mo+=1
+				continue
+			if this_bill >= bill_date:				
 				dates.append(this_bill)
 			# Feb 28 check 
 			if(this_mo==2 and b_day_corrected>28):
 				b_day_corrected=28
 			this_bill = this_bill.replace(month=this_mo,day=b_day_corrected, year=this_yr)
-			if this_bill > bal_date and this_bill >= bill_date:
+			if this_bill < bal_date: 
+				this_mo+=1
+				continue
+			if this_bill >= bill_date:
 				dates.append(this_bill)
+			count-=1
 			this_mo+=1
-			if this_mo > 12:
-				this_mo -= 12
-				this_yr += 1
-			# always reset for Feb 28 
-			b_day_corrected=b_day+14
-			
-	elif (cycle==monthly):
-		# monthly needs check for Feb 28 
+
+
+	elif (cycle==monthly):		
 		this_bill = bill_date
 		this_mo = b_mo
 		this_yr = b_yr
-		this_day = b_day
-		for i in range(6):
+		count=4
+		while (count != 0):
+			# always reset for Feb 28 	
+			this_day = b_day
+			# up year check
 			if this_mo > 12:
 				this_mo -= 12
 				this_yr += 1
@@ -746,18 +765,22 @@ def next_bill_due_date( bal_date, bill_date, cycle):
 			if this_day == 31:
 				this_day=30
 			this_bill= this_bill.replace(month=this_mo,day=this_day,year=this_yr)
-			if this_bill > bal_date and this_bill >= bill_date:
+			if this_bill < bal_date:
+				this_mo+=1
+				continue 
+			if this_bill >= bill_date:
 				dates.append(this_bill)
-			# always reset for Feb 28 
-			this_day=b_day
 			this_mo+=1						
+			count-=1
 
 	elif (cycle==bi_monthly):
 		this_mo=b_mo
 		this_day=b_day
 		this_bill = bill_date
 		this_yr = b_yr
-		for i in range(6):
+#		for i in range(12):
+		count=2
+		while (count != 0):			
 			if this_mo > 12:
 				this_mo -= 12
 				this_yr += 1
@@ -768,8 +791,12 @@ def next_bill_due_date( bal_date, bill_date, cycle):
 			# always rest for Feb
 			this_day=b_day
 #			if this_bill >= date.today():
-			if this_bill > bal_date and this_bill >= bill_date:		
+			if this_bill < bal_date:
+				this_mo+=2
+				continue
+			if this_bill >= bill_date:		
 				dates.append(this_bill)
+			count-=2
 			this_mo+=2			
 
 	elif (cycle == yearly):
