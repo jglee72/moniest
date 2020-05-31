@@ -94,6 +94,13 @@
 # 2020-05-26
 #		Use While loop in next_bill_date()
 #		for cleaner/less future bill dates
+#	2020-05-28
+#		Remove ui_inbackground at delegate 
+#		functions aleviated double calls.
+#		needs full testing for why was needed;
+#		Apparently editing account name freezes
+#		Pythonista. 
+#		Remove more clutter for above. 
 #########################################
 import ui
 from time import sleep
@@ -268,23 +275,10 @@ class accountField (object):
 			self.recur_status.text = recur_str
 			acc_list[self.idx].paid=d_paid
 			acc_list[self.idx].paid_date=date.strftime(d_paid_date,'%Y-%m-%d')
-
-	def textfield_did_end_editing(self, textfield):
-		global done_pushed
-		done_pushed=True
-		if(textfield.placeholder=='Balance'):
-#			textfield.text_color='black'
-			textfield.superview.superview.acc_list[self.idx].balance=float(textfield.text)
-			
-			# limit to, or add, 2 decimal places as needed
-			textfield.text='{:.2f}'.format(float(textfield.text))
-		elif(textfield.placeholder=='Account'):
-			textfield.superview.superview.acc_list[self.idx].name=textfield.text
-		textfield.end_editing()
-		return(True)
-		
+	
+# removing this stopped multiple calls to the function: what will it break		
 	@ui.in_background	
-	def textfield_did_begin_editing (self, textfield):
+	def textfield_did_end_editing (self, textfield):
 		# setup and record previous vals
 		old_text=textfield.text
 		global cancel_pushed
@@ -295,21 +289,28 @@ class accountField (object):
 		if(textfield.placeholder=="Balance"):
 			self.bill_balance_action(textfield)
 
-		while (not(done_pushed) and not(cancel_pushed)):
-			sleep(0.5)
-		#'Cancel' was pushed
-		if cancel_pushed==True:
-			cancel_pushed=False
-			#temp data needs to be redrawn
-			textfield.text=old_text
-			textfield.end_editing()
-		#'Done' was pushed
-		else:
-			done_pushed = False
-			textfield.end_editing()
+#			while (not(done_pushed) and not(cancel_pushed)):
+#				sleep(0.5)
+			#'Cancel' was pushed
+#			if cancel_pushed==True:
+#				cancel_pushed=False
+				#temp data needs to be redrawn
+#				textfield.text=old_text
+#				textfield.end_editing()
+#			#'Done' was pushed
+#			else:
+#				done_pushed = False
+#				textfield.superview.superview.acc_list[self.idx].balance=float(textfield.text)
+				
+				# limit or add 2 decimal places
+#				textfield.text= '{:.2f}'.format(float(textfield.text))
 
-	def __init__(self, frame_loc=(0,100),acc=account()):
-		
+		elif(textfield.placeholder=='Account'):
+			textfield.superview.superview.acc_list[self.idx].name=textfield.text
+		textfield.end_editing()
+		return(True)
+
+	def __init__(self, frame_loc=(0,100),acc=account()):		
 		self.frame_location=()
 		self.frame_wh=(100,45)
 		self.frame_wh_=(140,45)
@@ -327,7 +328,7 @@ class accountField (object):
 		self.frame_location = (frame_loc[0]+self.frame_gw_,frame_loc[1])
 		
 		#bill balance field
-		self.bal_field= ui.TextField(frame=self.frame_location+(self.frame_wh),bg_color=(.36, .54, .67), font=('Rockwell',17), text_color= 'red' if acc.summed == True else 'black', border_color='black', placeholder='Balance',text='{:.2f}'.format(float(acc.balance)),border_width=2, border_radius=20,alignment=ui.ALIGN_LEFT,alpha=0.5,selected=(False),editable=False,keyboard_type=ui.KEYBOARD_NUMBERS, delegate=self)
+		self.bal_field= ui.TextField(frame=self.frame_location+(self.frame_wh),bg_color=(.36, .54, .67), font=('Rockwell',17), text_color= 'red' if acc.summed == True else 'black', border_color='black', placeholder='Balance',text='{:.2f}'.format(float(acc.balance)),border_width=2, border_radius=20,alignment=ui.ALIGN_LEFT,alpha=0.5,selected=(False),editable=False,keyboard_type=ui.KEYBOARD_NUMBERS, delegate=self,enabled=True)
 		
 		self.frame_location = (self.frame_location[0]+self.frame_gw-5,frame_loc[1]-15)
 
@@ -366,10 +367,11 @@ class moniest (ui.View):
 	global done_pushed
 	
 	#bank balance field (action)
+# rem to stop double calls to function
 	@ui.in_background
-	def textview_did_begin_editing(self,textfield):
-		if(textfield.placeholder=='Bank Bal'):
-			field1={'type':'number','key':'balance','title':'Current Balance:  ','tint_color':'#346511','value':'{:.2f}'.format(float(textfield.text))}
+	def textview_should_begin_editing(self,textview):
+		if(textview.placeholder=='Bank Bal'):
+			field1={'type':'number','key':'balance','title':'Current Balance:  ','tint_color':'#346511','value':'{:.2f}'.format(float(textview.text))}
 			field1_1={'type':'date','key':'bal_date','title':'Deposit Date:  ','tint_color':'#000000',
 			'value': (datetime.strptime(self.acc_list[0].bank_date,'%Y-%m-%d'))}
 			field2={'type':'number','key':'deposit1','title':'Deposit Amount:  ','value':'{:.2f}'.format( float(self.acc_list[1].bank_balance))}
@@ -424,9 +426,6 @@ class moniest (ui.View):
 			# update balance on gui
 			self.set_needs_display()
 
-	def textfield_did_end_editing(self, textfield):
-		textfield.end_editing()
-		return(True)
 	def add_all_subview(self,acc_list):
 		x_pos= 10
 		y_start =10
@@ -521,7 +520,7 @@ class moniest (ui.View):
 		
 		# Bank balances
 		# Real bank balance and date recorded
-		self.b_real_balance = ui.TextView(frame=(10,h-210,110,45), placeholder = 'Bank Bal' , text='{:.2f}'.format(float(self.acc_list[0].bank_balance)) ,  border_width=0,border_radius=5 , bordered=True, delegate=self,font=('Verdana',17))
+		self.b_real_balance = ui.TextView(frame=(10,h-210,110,45), placeholder = 'Bank Bal' , text='{:.2f}'.format(float(self.acc_list[0].bank_balance)) ,  border_width=0,border_radius=5 , bordered=True, delegate=self,font=('Verdana',17),keyboard_type=ui.KEYBOARD_NUMBERS,editable=True,selectable=True)
 
 		self.add_subview(self.b_real_balance)
 		
